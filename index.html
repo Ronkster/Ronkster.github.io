@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Virus Cure Fast Solver</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel2: #1f2937;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --line: #334155;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #0b1220, #111827);
+      color: var(--text);
+    }
+    .wrap { max-width: 1350px; margin: 0 auto; padding: 20px; }
+    h1, h2, h3 { margin: 0 0 12px; }
+    p { color: var(--muted); }
+    .grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 18px; }
+    .panel {
+      background: rgba(17,24,39,0.94);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.28);
+    }
+    .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+    input, select, button {
+      width: 100%; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid var(--line); background: var(--panel2); color: var(--text); font-size: 14px;
+    }
+    button { background: #1d4ed8; border: none; cursor: pointer; font-weight: bold; }
+    button.secondary { background: #374151; }
+    button.danger { background: #991b1b; }
+    button.good { background: #166534; }
+    button.small { width: auto; padding: 6px 10px; font-size: 12px; }
+    .pillbox { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px;
+      border-radius: 999px; background: #0b1220; border: 1px solid var(--line); font-size: 13px;
+    }
+    .muted { color: var(--muted); }
+    .table-wrap {
+      max-height: 460px; overflow: auto; border: 1px solid var(--line);
+      border-radius: 12px; margin-top: 10px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: top; }
+    th { position: sticky; top: 0; background: #0b1220; z-index: 1; }
+    .target-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+    .target-card, .solution-card, .summary-card {
+      border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: rgba(2,6,23,0.35);
+    }
+    .value { font-weight: bold; font-size: 20px; margin-top: 4px; }
+    .solutions { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+    .solution-header {
+      display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 8px;
+    }
+    .combo-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 10px; }
+    .combo-item {
+      padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line);
+      background: rgba(31,41,55,0.75); font-size: 13px;
+    }
+    .ok { color: var(--good); }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+    .tiny { font-size: 12px; }
+    .checkboxes { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .toolbar button { width: auto; }
+    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } .row { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Virus Cure Fast Solver</h1>
+    <p>
+      This version is built for <strong>speed</strong>. It does <strong>not</strong> try to find the smallest cure.
+      It just tries to find exact cures quickly. Blindness and Coma target <strong>105%</strong>. Everything else targets <strong>100%</strong>.
+    </p>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>1) Choose symptoms</h2>
+        <div class="row">
+          <select id="symptomSelect"></select>
+          <button onclick="addTarget()">Add symptom target</button>
+          <button class="secondary" onclick="addCheckedTargets()">Add checked symptoms</button>
+          <button class="secondary" onclick="clearTargets()">Clear targets</button>
+        </div>
+
+        <div id="targetCards" class="target-list"></div>
+
+        <h3 style="margin-top:18px;">Checklist</h3>
+        <p class="tiny muted">The checklist is just a fast way to tick multiple symptoms at once, then add them.</p>
+        <div id="symptomChecklist" class="pillbox"></div>
+
+        <h2 style="margin-top:22px;">2) Search settings</h2>
+        <div class="row">
+          <div>
+            <div class="muted tiny">How many cures to find</div>
+            <input id="solutionCount" type="number" min="1" max="50" value="5" />
+          </div>
+          <div>
+            <div class="muted tiny">Max total ingredients in a cure</div>
+            <input id="maxIngredients" type="number" min="1" max="100" value="50" />
+          </div>
+          <div>
+            <div class="muted tiny">Time limit in seconds</div>
+            <input id="timeLimit" type="number" min="1" max="60" value="6" />
+          </div>
+          <div>
+            <div class="muted tiny">Random tries per batch</div>
+            <input id="triesPerBatch" type="number" min="100" max="200000" value="12000" />
+          </div>
+        </div>
+
+        <div class="checkboxes">
+          <label><input type="checkbox" id="lockOthers" /> Force all other symptoms to stay exactly 0%</label>
+          <label><input type="checkbox" id="showEffects" checked /> Show total symptom effects in cures</label>
+        </div>
+
+        <div class="toolbar">
+          <button class="good" onclick="solve()">Find cures fast</button>
+          <button class="secondary" onclick="loadExampleVirus()">Load example symptoms</button>
+        </div>
+
+        <div id="statusBox" class="summary-card" style="margin-top:14px;">
+          <strong>Status:</strong>
+          <div id="statusText" class="muted" style="margin-top:6px;">Ready.</div>
+        </div>
+
+        <h2 style="margin-top:22px;">Ingredient table</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Ingredient</th><th>Effects</th></tr>
+            </thead>
+            <tbody id="ingredientTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Solutions</h2>
+        <div id="solutions" class="solutions">
+          <div class="summary-card muted">No solutions searched yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const allSymptoms = [
+      "Sneezing", "Fainting", "Vomiting", "Eye Irritation", "Fever",
+      "Organ Failure", "Paralysis", "Hallucinations", "Muscle Pain", "Fatigue",
+      "Chills", "Vertigo", "Skin Rash", "Blindness", "Coma",
+      "Migraine", "Sore Throat", "Cough", "Nausea"
+    ];
+
+    const ingredients = [
+      { name: "NeuroFexin", effects: { "Paralysis": 20, "Muscle Pain": 20, "Blindness": -15 } },
+      { name: "Mitroxal", effects: { "Fever": 20, "Organ Failure": -15, "Muscle Pain": 15 } },
+      { name: "Levomane", effects: { "Migraine": -5, "Nausea": 15 } },
+      { name: "Epimycin", effects: { "Sneezing": -5, "Vomiting": 15 } },
+      { name: "Marvarix", effects: { "Organ Failure": 5, "Fatigue": -10 } },
+      { name: "Timonadryl", effects: { "Blindness": 15, "Cough": 15 } },
+      { name: "Bactedizem", effects: { "Fainting": 10, "Migraine": -15 } },
+      { name: "Dermaloxyn", effects: { "Eye Irritation": 15, "Skin Rash": 20, "Nausea": -10 } },
+      { name: "Docfine", effects: { "Sneezing": 15, "Eye Irritation": -10, "Nausea": 10 } },
+      { name: "Lansoletine", effects: { "Organ Failure": 15, "Paralysis": -10, "Coma": 15 } },
+      { name: "Panzoxane", effects: { "Sneezing": -20, "Fever": 45, "Migraine": 15 } },
+      { name: "Macronine", effects: { "Fatigue": -5, "Nausea": 10 } },
+      { name: "Azaprin", effects: { "Vomiting": -15, "Cough": 15 } },
+      { name: "Zonzipile", effects: { "Sneezing": 20, "Cough": -20 } },
+      { name: "Nemuide", effects: { "Eye Irritation": 20, "Nausea": -10 } },
+      { name: "Somnexyl", effects: { "Hallucinations": -10, "Fatigue": 15, "Chills": 10 } },
+      { name: "Amloxozane", effects: { "Organ Failure": -5, "Paralysis": 20 } },
+      { name: "Xybrinor", effects: { "Fever": -10, "Muscle Pain": 15, "Fatigue": 15 } },
+      { name: "Cyphorex", effects: { "Vomiting": -10, "Fever": 20, "Chills": 15 } },
+      { name: "Acipion", effects: { "Fainting": 15, "Cough": -10 } },
+      { name: "Hallodrine", effects: { "Fainting": -15, "Hallucinations": 25 } },
+      { name: "Thryzopan", effects: { "Vertigo": -10, "Skin Rash": 15, "Sore Throat": 10 } },
+      { name: "Cordanadryl", effects: { "Fever": 10, "Migraine": -10, "Sore Throat": 10 } },
+      { name: "Subotestryl", effects: { "Fainting": -10, "Vertigo": 10 } },
+      { name: "Alcofaxin", effects: { "Fainting": -5, "Migraine": 15 } }
+    ];
+
+    let targetSymptoms = [];
+
+    function targetFor(symptom) {
+      return (symptom === "Blindness" || symptom === "Coma") ? 105 : 100;
+    }
+
+    function init() {
+      const select = document.getElementById("symptomSelect");
+      allSymptoms.forEach(symptom => {
+        const opt = document.createElement("option");
+        opt.value = symptom;
+        opt.textContent = `${symptom} (${targetFor(symptom)}%)`;
+        select.appendChild(opt);
+      });
+      renderChecklist();
+      renderTargets();
+      renderIngredientTable();
+    }
+
+    function renderChecklist() {
+      const box = document.getElementById("symptomChecklist");
+      box.innerHTML = "";
+      allSymptoms.forEach(symptom => {
+        const label = document.createElement("label");
+        label.className = "pill";
+        label.innerHTML = `<input type="checkbox" class="symptomCheck" value="${escapeHtml(symptom)}"> ${escapeHtml(symptom)} <span class="muted tiny">${targetFor(symptom)}%</span>`;
+        box.appendChild(label);
+      });
+    }
+
+    function addCheckedTargets() {
+      document.querySelectorAll(".symptomCheck:checked").forEach(cb => {
+        if (!targetSymptoms.includes(cb.value)) targetSymptoms.push(cb.value);
+      });
+      renderTargets();
+    }
+
+    function addTarget() {
+      const symptom = document.getElementById("symptomSelect").value;
+      if (!targetSymptoms.includes(symptom)) targetSymptoms.push(symptom);
+      renderTargets();
+    }
+
+    function removeTarget(symptom) {
+      targetSymptoms = targetSymptoms.filter(s => s !== symptom);
+      renderTargets();
+    }
+
+    function clearTargets() {
+      targetSymptoms = [];
+      document.querySelectorAll(".symptomCheck").forEach(cb => cb.checked = false);
+      renderTargets();
+      document.getElementById("solutions").innerHTML = '<div class="summary-card muted">Targets cleared.</div>';
+    }
+
+    function renderTargets() {
+      const box = document.getElementById("targetCards");
+      box.innerHTML = "";
+      if (!targetSymptoms.length) {
+        box.innerHTML = '<div class="summary-card muted">No target symptoms yet.</div>';
+        return;
+      }
+      targetSymptoms.forEach(symptom => {
+        const card = document.createElement("div");
+        card.className = "target-card";
+        card.innerHTML = `
+          <div><strong>${escapeHtml(symptom)}</strong></div>
+          <div class="value">${targetFor(symptom)}%</div>
+          <button class="small danger" onclick="removeTarget('${escapeJs(symptom)}')">Remove</button>
+        `;
+        box.appendChild(card);
+      });
+    }
+
+    function renderIngredientTable() {
+      const body = document.getElementById("ingredientTable");
+      body.innerHTML = "";
+      ingredients.forEach(ing => {
+        const tr = document.createElement("tr");
+        const effectsText = Object.entries(ing.effects)
+          .map(([symptom, value]) => `${value >= 0 ? "+" : ""}${value}% ${symptom}`)
+          .join(", ");
+        tr.innerHTML = `<td><strong>${escapeHtml(ing.name)}</strong></td><td>${escapeHtml(effectsText)}</td>`;
+        body.appendChild(tr);
+      });
+    }
+
+    function loadExampleVirus() {
+      targetSymptoms = ["Sneezing", "Vomiting", "Fever", "Blindness"];
+      document.querySelectorAll(".symptomCheck").forEach(cb => cb.checked = targetSymptoms.includes(cb.value));
+      renderTargets();
+    }
+
+    function setStatus(text, cls = "muted") {
+      const el = document.getElementById("statusText");
+      el.className = cls;
+      el.textContent = text;
+    }
+
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function scoreVector(current, dims, targets) {
+      let score = 0;
+      for (let i = 0; i < dims.length; i++) {
+        score += Math.abs(targets[i] - current[i]);
+      }
+      return score;
+    }
+
+    function vecAdd(a, b, mul = 1) {
+      for (let i = 0; i < a.length; i++) a[i] += b[i] * mul;
+    }
+
+    function cloneVec(a) {
+      return a.slice();
+    }
+
+    function exactMatch(vec, targets) {
+      for (let i = 0; i < vec.length; i++) {
+        if (vec[i] !== targets[i]) return false;
+      }
+      return true;
+    }
+
+    function comboKey(counts) {
+      return counts.join(",");
+    }
+
+    function buildSolutionFromCounts(counts, usable) {
+      const items = [];
+      const totals = {};
+      allSymptoms.forEach(s => totals[s] = 0);
+
+      counts.forEach((count, idx) => {
+        if (count <= 0) return;
+        items.push({ name: usable[idx].name, count });
+        Object.entries(usable[idx].fullEffects).forEach(([symptom, value]) => {
+          totals[symptom] += value * count;
+        });
+      });
+
+      items.sort((a, b) => a.name.localeCompare(b.name));
+      const ingredientCount = counts.reduce((a, b) => a + b, 0);
+      return {
+        ingredientCount,
+        uniqueCount: items.length,
+        items,
+        totals
+      };
+    }
+
+    function solve() {
+      if (!targetSymptoms.length) {
+        alert("Add at least one symptom target first.");
+        return;
+      }
+
+      const wantedSolutions = Math.max(1, Number(document.getElementById("solutionCount").value) || 1);
+      const maxIngredients = Math.max(1, Number(document.getElementById("maxIngredients").value) || 1);
+      const timeLimitSec = Math.max(1, Number(document.getElementById("timeLimit").value) || 6);
+      const triesPerBatch = Math.max(100, Number(document.getElementById("triesPerBatch").value) || 12000);
+      const lockOthers = document.getElementById("lockOthers").checked;
+
+      const dims = [...targetSymptoms];
+      if (lockOthers) {
+        allSymptoms.forEach(s => {
+          if (!dims.includes(s)) dims.push(s);
+        });
+      }
+
+      const targets = dims.map(symptom => targetSymptoms.includes(symptom) ? targetFor(symptom) : 0);
+
+      const usable = ingredients
+        .map((ing, index) => ({
+          index,
+          name: ing.name,
+          vec: dims.map(symptom => ing.effects[symptom] || 0),
+          fullEffects: ing.effects
+        }))
+        .filter(item => item.vec.some(v => v !== 0));
+
+      if (!usable.length) {
+        setStatus("None of the ingredients affect the selected symptoms.", "bad");
+        document.getElementById("solutions").innerHTML = '<div class="summary-card bad">No usable ingredients for these targets.</div>';
+        return;
+      }
+
+      const start = performance.now();
+      const deadline = start + timeLimitSec * 1000;
+      let attempts = 0;
+      let bestScore = Infinity;
+      let bestCounts = null;
+      const found = [];
+      const foundKeys = new Set();
+
+      setStatus("Searching fast...", "warn");
+
+      // Speed-first randomized hillclimber with random restarts
+      while (performance.now() < deadline && found.length < wantedSolutions) {
+        for (let t = 0; t < triesPerBatch && performance.now() < deadline && found.length < wantedSolutions; t++) {
+          attempts++;
+
+          const counts = Array(usable.length).fill(0);
+          const current = Array(dims.length).fill(0);
+
+          const startLen = randomInt(Math.max(1, Math.floor(maxIngredients * 0.35)), maxIngredients);
+
+          // random seed
+          for (let step = 0; step < startLen; step++) {
+            const idx = randomInt(0, usable.length - 1);
+            counts[idx]++;
+            vecAdd(current, usable[idx].vec, 1);
+          }
+
+          // hillclimb / mutate
+          let currentScore = scoreVector(current, dims, targets);
+          let stall = 0;
+
+          for (let iter = 0; iter < 220; iter++) {
+            if (exactMatch(current, targets)) {
+              const key = comboKey(counts);
+              if (!foundKeys.has(key)) {
+                foundKeys.add(key);
+                found.push(buildSolutionFromCounts(counts, usable));
+              }
+              break;
+            }
+
+            let improved = false;
+            let bestMove = null;
+            let bestMoveScore = currentScore;
+
+            // test random changes
+            for (let m = 0; m < 16; m++) {
+              const idx = randomInt(0, usable.length - 1);
+              const mode = randomInt(0, 2); // 0 add, 1 remove, 2 swap
+
+              if (mode === 0) {
+                const next = cloneVec(current);
+                vecAdd(next, usable[idx].vec, 1);
+                const totalCount = counts.reduce((a, b) => a + b, 0);
+                if (totalCount + 1 > maxIngredients) continue;
+                const s = scoreVector(next, dims, targets);
+                if (s < bestMoveScore || Math.random() < 0.02) {
+                  bestMoveScore = s;
+                  bestMove = { type: "add", idx };
+                  improved = s < currentScore;
+                }
+              } else if (mode === 1) {
+                if (counts[idx] <= 0) continue;
+                const next = cloneVec(current);
+                vecAdd(next, usable[idx].vec, -1);
+                const s = scoreVector(next, dims, targets);
+                if (s < bestMoveScore || Math.random() < 0.02) {
+                  bestMoveScore = s;
+                  bestMove = { type: "remove", idx };
+                  improved = s < currentScore;
+                }
+              } else {
+                const idx2 = randomInt(0, usable.length - 1);
+                if (counts[idx] <= 0) continue;
+                const next = cloneVec(current);
+                vecAdd(next, usable[idx].vec, -1);
+                vecAdd(next, usable[idx2].vec, 1);
+                const s = scoreVector(next, dims, targets);
+                if (s < bestMoveScore || Math.random() < 0.02) {
+                  bestMoveScore = s;
+                  bestMove = { type: "swap", idx, idx2 };
+                  improved = s < currentScore;
+                }
+              }
+            }
+
+            if (bestMove) {
+              if (bestMove.type === "add") {
+                counts[bestMove.idx]++;
+                vecAdd(current, usable[bestMove.idx].vec, 1);
+              } else if (bestMove.type === "remove") {
+                counts[bestMove.idx]--;
+                vecAdd(current, usable[bestMove.idx].vec, -1);
+              } else {
+                counts[bestMove.idx]--;
+                counts[bestMove.idx2]++;
+                vecAdd(current, usable[bestMove.idx].vec, -1);
+                vecAdd(current, usable[bestMove.idx2].vec, 1);
+              }
+              currentScore = bestMoveScore;
+              if (!improved) stall++;
+              else stall = 0;
+            } else {
+              stall++;
+            }
+
+            if (currentScore < bestScore) {
+              bestScore = currentScore;
+              bestCounts = counts.slice();
+            }
+
+            // random shakeup if stuck
+            if (stall > 18) {
+              stall = 0;
+              const shakes = randomInt(2, 7);
+              for (let s = 0; s < shakes; s++) {
+                const idx = randomInt(0, usable.length - 1);
+                if (Math.random() < 0.5 && counts[idx] > 0) {
+                  counts[idx]--;
+                  vecAdd(current, usable[idx].vec, -1);
+                } else if (counts.reduce((a, b) => a + b, 0) < maxIngredients) {
+                  counts[idx]++;
+                  vecAdd(current, usable[idx].vec, 1);
+                }
+              }
+              currentScore = scoreVector(current, dims, targets);
+            }
+          }
+        }
+      }
+
+      const elapsed = ((performance.now() - start) / 1000).toFixed(2);
+
+      if (found.length) {
+        setStatus(`Finished in ${elapsed}s. Tried ${attempts.toLocaleString()} random combos. Found ${found.length} exact cure${found.length === 1 ? "" : "s"}.`, "ok");
+        renderSolutions(found, targetSymptoms, false, wantedSolutions, bestScore, bestCounts, usable, dims, targets);
+      } else {
+        setStatus(`Finished in ${elapsed}s. Tried ${attempts.toLocaleString()} random combos. No exact cure found. Best miss score: ${bestScore === Infinity ? "n/a" : bestScore}.`, "warn");
+        renderSolutions([], targetSymptoms, true, wantedSolutions, bestScore, bestCounts, usable, dims, targets);
+      }
+    }
+
+    function renderSolutions(solutions, targetSymptoms, noExact, wantedSolutions, bestScore, bestCounts, usable, dims, targets) {
+      const box = document.getElementById("solutions");
+      const showEffects = document.getElementById("showEffects").checked;
+
+      if (!solutions.length) {
+        let closestHtml = "";
+        if (bestCounts) {
+          const closest = buildSolutionFromCounts(bestCounts, usable);
+          const targetCards = targetSymptoms.map(symptom => {
+            const val = closest.totals[symptom] || 0;
+            return `<div class="combo-item"><strong>${escapeHtml(symptom)}</strong><br>${val}% / target ${targetFor(symptom)}%</div>`;
+          }).join("");
+
+          closestHtml = `
+            <div class="solution-card">
+              <div class="solution-header">
+                <div>
+                  <strong>Closest attempt</strong>
+                  <div class="muted tiny">Miss score: ${bestScore}</div>
+                </div>
+              </div>
+              <div class="combo-list">
+                ${closest.items.map(item => `<div class="combo-item"><strong>${escapeHtml(item.name)}</strong><br>× ${item.count}</div>`).join("") || '<div class="combo-item">No ingredients</div>'}
+              </div>
+              ${showEffects ? `<div style="margin-top:12px;"><strong>Target totals</strong></div><div class="combo-list">${targetCards}</div>` : ""}
+            </div>
+          `;
+        }
+
+        box.innerHTML = `
+          <div class="summary-card warn">
+            <strong>No exact cure found in time.</strong>
+            <div style="margin-top:6px;">This speed-first version uses randomized search, so rerunning it can find different answers.</div>
+          </div>
+          ${closestHtml}
+        `;
+        return;
+      }
+
+      box.innerHTML = `
+        <div class="summary-card ok">
+          <strong>Found ${solutions.length} exact cure${solutions.length === 1 ? "" : "s"}.</strong>
+          <div style="margin-top:6px;">This version does not care about smallest combos. It just finds exact matches fast.</div>
+        </div>
+      `;
+
+      solutions.forEach((sol, idx) => {
+        const card = document.createElement("div");
+        card.className = "solution-card";
+
+        const totalsText = targetSymptoms.map(symptom => {
+          const val = sol.totals[symptom] || 0;
+          return `<div class="combo-item"><strong>${escapeHtml(symptom)}</strong><br>${val}% / target ${targetFor(symptom)}%</div>`;
+        }).join("");
+
+        const extraNonZero = Object.entries(sol.totals)
+          .filter(([symptom, value]) => !targetSymptoms.includes(symptom) && value !== 0)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([symptom, value]) => `${value >= 0 ? "+" : ""}${value}% ${symptom}`);
+
+        card.innerHTML = `
+          <div class="solution-header">
+            <div>
+              <strong>Solution ${idx + 1}</strong>
+              <div class="muted tiny">${sol.ingredientCount} total ingredient uses • ${sol.uniqueCount} unique ingredients</div>
+            </div>
+          </div>
+          <div class="combo-list">
+            ${sol.items.map(item => `<div class="combo-item"><strong>${escapeHtml(item.name)}</strong><br>× ${item.count}</div>`).join("")}
+          </div>
+          ${showEffects ? `
+            <div style="margin-top:12px;"><strong>Target totals</strong></div>
+            <div class="combo-list">${totalsText}</div>
+            <div style="margin-top:12px;"><strong>Other symptom side effects</strong></div>
+            <div class="muted tiny" style="margin-top:6px;">
+              ${extraNonZero.length ? escapeHtml(extraNonZero.join(", ")) : "None"}
+            </div>
+          ` : ""}
+        `;
+        box.appendChild(card);
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+    function escapeJs(str) {
+      return String(str).replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+    }
+
+    init();
+  </script>
+</body>
+</html>
