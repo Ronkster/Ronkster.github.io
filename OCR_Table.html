@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Updated Virology OCR Ingredient Table</title>
+  <style>
+    :root{
+      --bg:#0f172a;--panel:#111827;--panel2:#1f2937;--line:#334155;--text:#e5e7eb;--muted:#94a3b8;--good:#22c55e;--warn:#f59e0b;--bad:#ef4444;--blue:#2563eb;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(180deg,#0b1220,#111827);color:var(--text)}
+    .wrap{max-width:none;width:100%;margin:0 auto;padding:16px}
+    h1,h2,h3{margin:0 0 12px}
+    p{color:var(--muted)}
+    .grid{display:grid;grid-template-columns:420px minmax(900px,1fr);gap:16px;align-items:start}
+    .panel{background:rgba(17,24,39,.94);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:0 12px 32px rgba(0,0,0,.26);min-width:0}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+    .row3{display:grid;grid-template-columns:1.2fr .8fr auto;gap:10px;margin-bottom:10px}
+    input,select,button,textarea{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:14px}
+    textarea{min-height:80px;resize:vertical}
+    button{background:var(--blue);border:none;cursor:pointer;font-weight:bold}
+    button.secondary{background:#374151} button.good{background:#166534} button.danger{background:#991b1b} button.small{width:auto;padding:6px 10px;font-size:12px}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.toolbar button{width:auto}
+    .muted{color:var(--muted)} .tiny{font-size:12px}
+    .pillbox{display:flex;gap:8px;flex-wrap:wrap}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:7px 10px;border-radius:999px;border:1px solid var(--line);background:#0b1220;font-size:13px}
+    .preview-box,.status-box,.card{border:1px solid var(--line);border-radius:12px;padding:12px;background:rgba(2,6,23,.35)}
+    .preview-box img{max-width:100%;max-height:240px;object-fit:contain;border-radius:10px;display:block;margin-top:10px;border:1px solid var(--line)}
+    .effects-list,.conflict-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+    .table-wrap{max-height:76vh;overflow:auto;border:1px solid var(--line);border-radius:12px;margin-top:10px;width:100%}
+    table{width:max-content;border-collapse:collapse;font-size:13px;min-width:1850px;table-layout:auto}
+    th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:center;vertical-align:middle;min-width:92px;white-space:nowrap}
+    th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:#0b1220;z-index:3;min-width:150px}
+    th{position:sticky;top:0;background:#0b1220;z-index:4}
+    .unknown{color:var(--muted)} .known{color:var(--good);font-weight:bold} .warn{color:var(--warn)} .bad{color:var(--bad)} .goodtxt{color:var(--good)} .section-gap{margin-top:18px} .editable-cell{cursor:text;padding:4px 6px} .editable-cell:hover{background:rgba(37,99,235,.12)} .cell-input{width:100%;min-width:60px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:13px;text-align:center} .cell-wrap{display:flex;flex-direction:column;align-items:center;gap:2px} .confidence-tag{font-size:10px;line-height:1;padding:3px 6px;border-radius:999px;border:1px solid var(--line);color:var(--muted)} .conf-manual{color:#93c5fd} .conf-ocr{color:#fcd34d} .conf-edited{color:#f9a8d4}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap}
+    @media (max-width:1100px){.grid{grid-template-columns:1fr}.row,.row3,.split{grid-template-columns:1fr}table{min-width:1600px}}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <h1>Updated Virology OCR Ingredient Table</h1>
+  <p>Updated for the new virology ingredient names and symptom list. Upload or paste a screenshot, let OCR try reading it, then check the filled rows before applying them to the table.</p>
+  <div class="grid">
+    <div class="panel">
+      <h2>1) Setup</h2>
+      <div class="row">
+        <input id="symptomName" placeholder="Add symptom name" />
+        <button onclick="addSymptom()">Add symptom</button>
+      </div>
+      <div id="symptomPills" class="pillbox"></div>
+
+      <div class="row section-gap">
+        <input id="ingredientName" placeholder="Add ingredient name" />
+        <button onclick="addIngredient()">Add ingredient</button>
+      </div>
+      <div id="ingredientPills" class="pillbox"></div>
+
+      <div class="toolbar">
+        <button class="secondary" onclick="resetToDefaults()">Reset to new virology defaults</button>
+        <button class="danger" onclick="resetAll()">Reset everything</button>
+      </div>
+
+      <h2 class="section-gap">2) Add one test</h2>
+      <div class="row">
+        <select id="ingredientSelect"></select>
+        <input id="virusName" placeholder="Virus/test name (optional)" />
+      </div>
+
+      <div class="row">
+        <label class="pill"><input type="checkbox" id="singleIngredientOnly" checked /> Single ingredient test</label>
+        <input type="file" id="screenshotInput" accept="image/*" />
+      </div>
+      <div class="card" id="pasteZone" tabindex="0" style="margin-bottom:10px;">
+        <strong>Paste screenshot</strong>
+        <div class="tiny muted" style="margin-top:6px;">Copy an image to your clipboard, click this box, then press paste. It also listens for paste anywhere on the page.</div>
+      </div>
+
+      <div class="preview-box">
+        <strong>Screenshot preview</strong>
+        <div class="tiny muted">OCR tries to read symptom names and percentages from the screenshot and fill result rows automatically. You should still check it before applying.</div>
+        <img id="screenshotPreview" style="display:none;" alt="Screenshot preview">
+        <div id="noImageText" class="tiny muted" style="margin-top:8px;">No screenshot selected.</div>
+        <div class="toolbar">
+          <button class="good" onclick="runOCR()">Read screenshot with OCR</button>
+          <button class="secondary" onclick="clearOCR()">Clear OCR output</button>
+        </div>
+      </div>
+
+      <div id="ocrBox" class="card section-gap">
+        <strong>OCR output</strong>
+        <div id="ocrStatus" class="tiny muted" style="margin-top:6px;">Waiting for screenshot.</div>
+        <textarea id="ocrRawText" class="mono" placeholder="Raw OCR text will appear here"></textarea>
+      </div>
+
+      <h3 class="section-gap">Visible results</h3>
+      <div id="effectRows"></div>
+      <div class="toolbar">
+        <button class="secondary" onclick="addEffectRow()">+ Add result row</button>
+        <button class="good" onclick="applyTest()">Apply this test to table</button>
+      </div>
+
+      <div class="status-box section-gap">
+        <strong>Status</strong>
+        <div id="statusText" class="muted" style="margin-top:6px;">Ready.</div>
+      </div>
+
+      <div id="conflictsBox" class="card section-gap" style="display:none;">
+        <strong>Conflicts found</strong>
+        <div class="tiny muted" style="margin-top:6px;">The tool will not overwrite an existing value with a different one.</div>
+        <div id="conflictList" class="conflict-list"></div>
+      </div>
+
+      <h2 class="section-gap">3) Save / load</h2>
+      <textarea id="jsonBox" placeholder='Save data as JSON or paste JSON here to load it later'></textarea>
+      <div class="toolbar">
+        <button class="secondary" onclick="exportJSON()">Export JSON</button>
+        <button class="secondary" onclick="importJSON()">Import JSON</button>
+        <button class="secondary" onclick="exportCSV()">Export CSV</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Master ingredient table</h2>
+      <div class="tiny muted">Known cells are green. Blank cells mean unknown. Click a table cell to edit it. Scroll sideways to see all symptoms.</div>
+      <div id="tableSummary" class="status-box" style="margin-top:10px;"></div>
+      <div class="table-wrap">
+        <table id="masterTable">
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <h2 class="section-gap">Recent tests</h2>
+      <div id="testLog" class="effects-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_SYMPTOMS = ["Chills","Fainting","Fatigue","Vertigo","Paralysis","Fever","Blindness","Migraine","Eye Irritation","Muscle Pain","Nausea","Vomiting","Coma","Organ Failure","Hallucinations","Skin Rash","Sneezing","Cough","Sore Throat"];
+const DEFAULT_INGREDIENTS = ["Dermatrix","Neurovex","Morvexis","Oculyte","Lumicet","Bronchex","Myocordin","Hallucor","Virexon","Organex","Velmorin","Trivexol","Neurozil","Cryostin","Throxil","Dermavax","Synaptix","Clairion","Xenoviralyn","Luxbane","Stabilon","Zypheral","Paralynth","Vertigen","Organilax","Emetrolix","Pulmovar","Somnora","Talorinex","Myonex"];
+
+let symptoms = [];
+let ingredients = [];
+let ingredientTable = {};
+let confidenceTable = {};
+let testLog = [];
+
+function normName(name){ return String(name || "").trim(); }
+function signed(n){ return (n > 0 ? "+" : "") + n; }
+
+function canonical(name){
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "");
+}
+
+function symptomVariants(symptom){
+  const c = canonical(symptom);
+  const variants = new Set([c]);
+  if (c === "coughing") variants.add("cough");
+  if (c === "cough") variants.add("coughing");
+  if (c === "organfailure") variants.add("organ");
+  if (c === "musclepain") variants.add("muscle");
+  return [...variants];
+}
+
+function findBestSymptomMatch(raw){
+  const cand = canonical(raw);
+  if (!cand) return null;
+  for (const symptom of symptoms){
+    const vars = symptomVariants(symptom);
+    if (vars.includes(cand)) return symptom;
+  }
+  for (const symptom of symptoms){
+    const vars = symptomVariants(symptom);
+    if (vars.some(v => cand.includes(v) || v.includes(cand))) return symptom;
+  }
+  return null;
+}
+
+function preloadDefaults(){
+  symptoms = [...DEFAULT_SYMPTOMS];
+  ingredients = [...DEFAULT_INGREDIENTS];
+  ingredientTable = {};
+  confidenceTable = {};
+  ingredients.forEach(ing => {
+    ingredientTable[ing] = {};
+    confidenceTable[ing] = {};
+    symptoms.forEach(symptom => {
+      ingredientTable[ing][symptom] = null;
+      confidenceTable[ing][symptom] = null;
+    });
+  });
+  testLog = [];
+}
+
+function addSymptom(){
+  const input = document.getElementById("symptomName");
+  const name = normName(input.value);
+  if(!name) return;
+  if(symptoms.includes(name)){ setStatus("That symptom already exists.","warn"); return; }
+  symptoms.push(name);
+  for(const ing of ingredients){ ingredientTable[ing][name] = null; confidenceTable[ing][name] = null; }
+  input.value = "";
+  lastFillSource = "manual";
+  renderAll();
+  saveLocal();
+  setStatus("Symptom added.","goodtxt");
+}
+
+function addIngredient(){
+  const input = document.getElementById("ingredientName");
+  const name = normName(input.value);
+  if(!name) return;
+  if(ingredients.includes(name)){ setStatus("That ingredient already exists.","warn"); return; }
+  ingredients.push(name);
+  ingredientTable[name] = {};
+  confidenceTable[name] = {};
+  for(const symptom of symptoms){
+    ingredientTable[name][symptom] = null;
+    confidenceTable[name][symptom] = null;
+  }
+  input.value = "";
+  lastFillSource = "manual";
+  renderAll();
+  saveLocal();
+  setStatus("Ingredient added.","goodtxt");
+}
+
+function removeSymptom(name){
+  symptoms = symptoms.filter(s => s !== name);
+  for(const ing of ingredients){ delete ingredientTable[ing][name]; }
+  renderAll();
+  saveLocal();
+}
+
+function removeIngredient(name){
+  ingredients = ingredients.filter(i => i !== name);
+  delete ingredientTable[name];
+  renderAll();
+  saveLocal();
+}
+
+function updateIngredientDropdown(){
+  const select = document.getElementById("ingredientSelect");
+  const current = select.value;
+  select.innerHTML = "";
+  const opt0 = document.createElement("option");
+  opt0.value = "";
+  opt0.textContent = ingredients.length ? "Choose ingredient used" : "Add ingredients first";
+  select.appendChild(opt0);
+  ingredients.forEach(ing => {
+    const opt = document.createElement("option");
+    opt.value = ing;
+    opt.textContent = ing;
+    if(ing === current) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+function buildSymptomOptions(select, selected = ""){
+  select.innerHTML = "";
+  const d = document.createElement("option");
+  d.value = "";
+  d.textContent = symptoms.length ? "Choose symptom" : "Add symptoms first";
+  select.appendChild(d);
+  symptoms.forEach(symptom => {
+    const opt = document.createElement("option");
+    opt.value = symptom;
+    opt.textContent = symptom;
+    if(symptom === selected) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+function addEffectRow(symptomValue = "", amountValue = ""){
+  const wrap = document.getElementById("effectRows");
+  const row = document.createElement("div");
+  row.className = "row3 effect-row";
+
+  const select = document.createElement("select");
+  select.className = "effect-symptom";
+  buildSymptomOptions(select, symptomValue);
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.step = "any";
+  input.className = "effect-value";
+  input.placeholder = "Percent change, like -15 or 5";
+  input.value = amountValue;
+
+  const btn = document.createElement("button");
+  btn.className = "secondary";
+  btn.textContent = "Remove";
+  btn.onclick = () => row.remove();
+
+  row.appendChild(select); row.appendChild(input); row.appendChild(btn);
+  wrap.appendChild(row);
+}
+
+function clearEffectRows(){
+  document.getElementById("effectRows").innerHTML = "";
+  addEffectRow();
+}
+
+function refreshEffectDropdowns(){
+  document.querySelectorAll(".effect-symptom").forEach(select => {
+    const current = select.value;
+    buildSymptomOptions(select, current);
+  });
+}
+
+
+let clipboardImageFile = null;
+let lastFillSource = "manual";
+
+function setScreenshotFromFile(file){
+  clipboardImageFile = file || null;
+
+  const img = document.getElementById("screenshotPreview");
+  const txt = document.getElementById("noImageText");
+  if(!file){
+    img.style.display = "none";
+    img.src = "";
+    txt.style.display = "block";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    img.src = e.target.result;
+    img.style.display = "block";
+    txt.style.display = "none";
+  };
+  reader.readAsDataURL(file);
+}
+
+function getCurrentScreenshotFile(){
+  const input = document.getElementById("screenshotInput");
+  const file = input.files && input.files[0];
+  return file || clipboardImageFile || null;
+}
+
+function handlePasteEvent(event){
+  const items = event.clipboardData && event.clipboardData.items;
+  if(!items) return;
+
+  for(const item of items){
+    if(item.type && item.type.startsWith("image/")){
+      const file = item.getAsFile();
+      if(file){
+        event.preventDefault();
+        setScreenshotFromFile(file);
+        setOCRStatus("Pasted screenshot ready.", "goodtxt");
+        setStatus("Pasted screenshot loaded.", "goodtxt");
+        return;
+      }
+    }
+  }
+}
+
+function handleScreenshotPreview(){
+  const input = document.getElementById("screenshotInput");
+  const file = input.files && input.files[0];
+  clipboardImageFile = null;
+  setScreenshotFromFile(file || null);
+}
+
+function clearOCR(){
+  document.getElementById("ocrRawText").value = "";
+  document.getElementById("ocrStatus").textContent = "OCR cleared.";
+  lastFillSource = "manual";
+}
+
+function setOCRStatus(text, cls="muted"){
+  const el = document.getElementById("ocrStatus");
+  el.className = "tiny " + cls;
+  el.textContent = text;
+}
+
+async function runOCR(){
+  const file = getCurrentScreenshotFile();
+  if(!file){
+    setOCRStatus("Choose or paste a screenshot first.", "bad");
+    return;
+  }
+  if(typeof Tesseract === "undefined"){
+    setOCRStatus("OCR library failed to load.", "bad");
+    return;
+  }
+
+  setOCRStatus("Reading screenshot... this can take a bit.", "warn");
+  try{
+    const result = await Tesseract.recognize(file, "eng", {
+      logger: m => {
+        if (m && m.status) {
+          const pct = m.progress ? " " + Math.round(m.progress * 100) + "%" : "";
+          setOCRStatus(m.status + pct, "warn");
+        }
+      }
+    });
+
+    const text = result.data.text || "";
+    document.getElementById("ocrRawText").value = text;
+
+    const parsed = parseOCRText(text);
+    lastFillSource = "ocr";
+    fillRowsFromParsed(parsed);
+
+    if(parsed.length){
+      setOCRStatus("OCR found " + parsed.length + " possible result row" + (parsed.length === 1 ? "" : "s") + ". Check them before applying.", "goodtxt");
+      setStatus("OCR filled the visible result rows. Check them before applying.", "goodtxt");
+    } else {
+      setOCRStatus("OCR could not confidently match symptom lines. You can still type values manually.", "warn");
+    }
+  } catch(err){
+    setOCRStatus("OCR failed. Try a clearer screenshot or type the values manually.", "bad");
+  }
+}
+
+function parseOCRText(text){
+  const cleanLines = String(text || "")
+    .split(/\r?\n/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const parsed = [];
+  const seen = new Set();
+
+  function pushPair(symptom, value){
+    const key = symptom + "|" + value;
+    if(!seen.has(key)){
+      seen.add(key);
+      parsed.push({symptom, value});
+    }
+  }
+
+  // Main pass: split each OCR line into repeated "symptom ... number%" chunks.
+  for(const line of cleanLines){
+    const parts = line
+      .split(/([+-]?\d{1,3}\s*%)/g)
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    for(let i = 0; i < parts.length - 1; i++){
+      if(!/%/.test(parts[i+1])) continue;
+      const symptomText = parts[i].replace(/[.,:;]+$/g, "").trim();
+      const valueMatch = parts[i+1].match(/([+-]?\d{1,3})\s*%/);
+      if(!valueMatch) continue;
+
+      const symptom = findBestSymptomMatch(symptomText);
+      if(symptom){
+        const value = Number(valueMatch[1]);
+        if(!Number.isNaN(value)) pushPair(symptom, value);
+      }
+    }
+  }
+
+  // Fallback token scan if OCR spacing is messy.
+  if (!parsed.length){
+    const tokens = cleanLines.join(" ").replace(/%/g, " % ").split(/\s+/).filter(Boolean);
+    for(let i = 0; i < tokens.length; i++){
+      const valMatch = tokens[i].match(/^([+-]?\d{1,3})$/);
+      if(!valMatch) continue;
+      if(tokens[i+1] !== "%") continue;
+
+      for(let back = 1; back <= 4; back++){
+        const rawSym = tokens.slice(Math.max(0, i-back), i).join(" ");
+        if(!rawSym) continue;
+        const symptom = findBestSymptomMatch(rawSym);
+        if(symptom){
+          const value = Number(valMatch[1]);
+          if(!Number.isNaN(value)) pushPair(symptom, value);
+          break;
+        }
+      }
+    }
+  }
+
+  return parsed;
+}
+
+function fillRowsFromParsed(parsed){
+  if(!parsed.length) return;
+  document.getElementById("effectRows").innerHTML = "";
+  parsed.forEach(item => addEffectRow(item.symptom, item.value));
+}
+
+function applyTest(){
+  const ingredient = document.getElementById("ingredientSelect").value;
+  const virusName = normName(document.getElementById("virusName").value);
+  const single = document.getElementById("singleIngredientOnly").checked;
+  if(!ingredient){ setStatus("Choose the ingredient used first.","bad"); return; }
+  if(!single){ setStatus("This builder only writes direct values for single-ingredient tests. Keep that box checked for safe updates.","warn"); return; }
+
+  const rows = [...document.querySelectorAll(".effect-row")];
+  const visibleResults = {};
+  const sourceForApply = lastFillSource === "ocr" ? "ocr" : "manual";
+  for(const row of rows){
+    const symptom = row.querySelector(".effect-symptom").value;
+    const raw = row.querySelector(".effect-value").value;
+    if(!symptom || raw === "") continue;
+    const val = Number(raw);
+    if(Number.isNaN(val)) continue;
+    visibleResults[symptom] = val;
+  }
+  if(!Object.keys(visibleResults).length){ setStatus("Add at least one visible result first.","bad"); return; }
+
+  let updates = 0;
+  const conflicts = [];
+  for(const [symptom, value] of Object.entries(visibleResults)){
+    if(!(ingredientTable[ingredient] && symptom in ingredientTable[ingredient])) continue;
+    const existing = ingredientTable[ingredient][symptom];
+    if(existing === null || existing === undefined){
+      ingredientTable[ingredient][symptom] = value; confidenceTable[ingredient][symptom] = sourceForApply; updates++;
+    } else if(Number(existing) !== Number(value)){
+      conflicts.push({ingredient, symptom, existing, incoming:value});
+    }
+  }
+
+  testLog.unshift({ time:new Date().toLocaleString(), ingredient, virusName:virusName || "(unnamed test)", visibleResults, source: sourceForApply });
+  testLog = testLog.slice(0, 60);
+
+  document.getElementById("conflictsBox").style.display = conflicts.length ? "block" : "none";
+  const conflictList = document.getElementById("conflictList");
+  conflictList.innerHTML = "";
+  conflicts.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML = "<strong>" + escapeHtml(c.ingredient) + "</strong> / " + escapeHtml(c.symptom) + " already had <span class='warn'>" + signed(c.existing) + "%</span> but this test said <span class='bad'>" + signed(c.incoming) + "%</span>.";
+    conflictList.appendChild(div);
+  });
+
+  lastFillSource = "manual";
+  renderAll();
+  saveLocal();
+  setStatus("Test applied. " + updates + " new table cell" + (updates===1?"":"s") + " filled." + (conflicts.length ? " Some conflicts were not overwritten." : ""), conflicts.length ? "warn" : "goodtxt");
+}
+
+function makeRemoveButton(label, fnName, value){
+  const btn = document.createElement("button");
+  btn.className = "small danger";
+  btn.textContent = "x";
+  btn.onclick = () => window[fnName](value);
+  const wrap = document.createElement("span");
+  wrap.className = "pill";
+  wrap.append(document.createTextNode(label + " "), btn);
+  return wrap;
+}
+
+function renderPills(){
+  const sbox = document.getElementById("symptomPills");
+  sbox.innerHTML = "";
+  if(!symptoms.length){ sbox.innerHTML = '<div class="tiny muted">No symptoms yet.</div>'; }
+  else symptoms.forEach(symptom => sbox.appendChild(makeRemoveButton(symptom, "removeSymptom", symptom)));
+
+  const ibox = document.getElementById("ingredientPills");
+  ibox.innerHTML = "";
+  if(!ingredients.length){ ibox.innerHTML = '<div class="tiny muted">No ingredients yet.</div>'; }
+  else ingredients.forEach(ingredient => ibox.appendChild(makeRemoveButton(ingredient, "removeIngredient", ingredient)));
+}
+
+
+function startInlineEdit(td, ingredient, symptom){
+  if(td.querySelector("input")) return;
+
+  const current = ingredientTable[ingredient] && ingredientTable[ingredient][symptom];
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "cell-input";
+  input.value = (current === null || current === undefined || current === "") ? "" : String(current);
+  input.placeholder = "—";
+
+  function commit(){
+    const raw = input.value.trim();
+    if(raw === ""){
+      ingredientTable[ingredient][symptom] = null;
+      confidenceTable[ingredient][symptom] = null;
+      renderAll();
+      saveLocal();
+      setStatus("Cleared " + ingredient + " / " + symptom + ".", "goodtxt");
+      return;
+    }
+    const value = Number(raw.replace(/%/g, ""));
+    if(Number.isNaN(value)){
+      renderAll();
+      setStatus("That was not a valid number.", "bad");
+      return;
+    }
+    ingredientTable[ingredient][symptom] = value;
+    confidenceTable[ingredient][symptom] = "edited";
+    renderAll();
+    saveLocal();
+    setStatus("Updated " + ingredient + " / " + symptom + " to " + signed(value) + "%.", "goodtxt");
+  }
+
+  function cancel(){
+    renderAll();
+  }
+
+  td.innerHTML = "";
+  td.appendChild(input);
+  input.focus();
+  input.select();
+  input.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      commit();
+    } else if(e.key === "Escape"){
+      e.preventDefault();
+      cancel();
+    }
+  });
+  input.addEventListener("blur", commit, { once: true });
+}
+
+
+function renderTable(){
+  const head = document.getElementById("tableHead");
+  const body = document.getElementById("tableBody");
+  head.innerHTML = "";
+  body.innerHTML = "";
+
+  const trh = document.createElement("tr");
+  const th0 = document.createElement("th");
+  th0.textContent = "Ingredient";
+  trh.appendChild(th0);
+  symptoms.forEach(symptom => {
+    const th = document.createElement("th");
+    th.textContent = symptom;
+    trh.appendChild(th);
+  });
+  head.appendChild(trh);
+
+  ingredients.forEach(ingredient => {
+    const tr = document.createElement("tr");
+
+    const nameTd = document.createElement("td");
+    const strong = document.createElement("strong");
+    strong.textContent = ingredient;
+    nameTd.appendChild(strong);
+    tr.appendChild(nameTd);
+
+    symptoms.forEach(symptom => {
+      const td = document.createElement("td");
+      const val = ingredientTable[ingredient] && ingredientTable[ingredient][symptom];
+      const conf = confidenceTable[ingredient] && confidenceTable[ingredient][symptom];
+      td.className = (val === null || val === undefined || val === "") ? "unknown editable-cell" : "known editable-cell";
+
+      const wrap = document.createElement("div");
+      wrap.className = "cell-wrap";
+      const main = document.createElement("div");
+      main.textContent = (val === null || val === undefined || val === "") ? "—" : signed(val) + "%";
+      wrap.appendChild(main);
+
+      if(val !== null && val !== undefined && val !== "" && conf){
+        const tag = document.createElement("div");
+        tag.className = "confidence-tag " + (conf === "manual" ? "conf-manual" : conf === "ocr" ? "conf-ocr" : "conf-edited");
+        tag.textContent = conf === "manual" ? "manual" : conf === "ocr" ? "ocr" : "edited";
+        wrap.appendChild(tag);
+      }
+
+      td.appendChild(wrap);
+      td.addEventListener("click", () => startInlineEdit(td, ingredient, symptom));
+      tr.appendChild(td);
+    });
+
+    body.appendChild(tr);
+  });
+
+  const known = countKnownCells();
+  const total = ingredients.length * symptoms.length;
+  document.getElementById("tableSummary").innerHTML =
+    "<strong>Coverage</strong><div style='margin-top:6px;'>" +
+    known + " known cell" + (known===1?"":"s") + " out of " + total +
+    ". " + (total ? Math.round((known/total)*100) : 0) + "% filled.</div>";
+}
+
+
+function deleteTest(index){
+  if(index < 0 || index >= testLog.length) return;
+  testLog.splice(index, 1);
+  lastFillSource = "manual";
+  renderAll();
+  saveLocal();
+  setStatus("Deleted test log entry.", "goodtxt");
+}
+
+function renderLog(){
+  const box = document.getElementById("testLog");
+  box.innerHTML = "";
+  if(!testLog.length){
+    box.innerHTML = '<div class="card tiny muted">No tests logged yet.</div>';
+    return;
+  }
+  testLog.forEach((test, index) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const lines = Object.entries(test.visibleResults).map(([symptom, val]) => escapeHtml(symptom) + ": " + signed(val) + "%").join(", ");
+    card.innerHTML =
+      "<div style='display:flex;justify-content:space-between;gap:8px;align-items:start;'>" +
+      "<div><strong>" + escapeHtml(test.ingredient) + "</strong><div class='tiny muted' style='margin-top:4px;'>" +
+      escapeHtml(test.virusName) + " • " + escapeHtml(test.time) + " • " + escapeHtml(test.source || "manual") + "</div></div>" +
+      "</div>" +
+      "<div style='margin-top:8px;'>" + (lines || "No visible results") + "</div>";
+    const top = card.firstChild;
+    const del = document.createElement("button");
+    del.className = "small danger";
+    del.textContent = "Delete";
+    del.addEventListener("click", () => deleteTest(index));
+    top.appendChild(del);
+    box.appendChild(card);
+  });
+}
+
+function countKnownCells(){
+  let count = 0;
+  for(const ingredient of ingredients){
+    for(const symptom of symptoms){
+      const val = ingredientTable[ingredient] && ingredientTable[ingredient][symptom];
+      if(val !== null && val !== undefined && val !== "") count++;
+    }
+  }
+  return count;
+}
+
+function exportJSON(){
+  const data = { symptoms, ingredients, ingredientTable, confidenceTable, testLog };
+  document.getElementById("jsonBox").value = JSON.stringify(data, null, 2);
+  setStatus("JSON exported into the box below.","goodtxt");
+}
+
+function importJSON(){
+  try{
+    const raw = document.getElementById("jsonBox").value;
+    const data = JSON.parse(raw);
+    if(!Array.isArray(data.symptoms) || !Array.isArray(data.ingredients) || typeof data.ingredientTable !== "object"){ throw new Error("Bad format"); }
+    symptoms = data.symptoms.map(normName).filter(Boolean);
+    ingredients = data.ingredients.map(normName).filter(Boolean);
+    ingredientTable = data.ingredientTable || {};
+    confidenceTable = data.confidenceTable || {};
+    testLog = Array.isArray(data.testLog) ? data.testLog : [];
+    for(const ing of ingredients){
+      if(!ingredientTable[ing]) ingredientTable[ing] = {};
+      if(!confidenceTable[ing]) confidenceTable[ing] = {};
+      for(const symptom of symptoms){
+        if(!(symptom in ingredientTable[ing])) ingredientTable[ing][symptom] = null;
+        if(!(symptom in confidenceTable[ing])) confidenceTable[ing][symptom] = null;
+      }
+    }
+    document.getElementById("conflictsBox").style.display = "none";
+    renderAll();
+    saveLocal();
+    setStatus("JSON imported.","goodtxt");
+  } catch(e){
+    setStatus("Could not import JSON. Check the format.","bad");
+  }
+}
+
+function exportCSV(){
+  const rows = [];
+  rows.push(["Ingredient"].concat(symptoms));
+  ingredients.forEach(ingredient => {
+    const row = [ingredient];
+    symptoms.forEach(symptom => {
+      const val = ingredientTable[ingredient] && ingredientTable[ingredient][symptom];
+      row.push(val === null || val === undefined ? "" : val);
+    });
+    rows.push(row);
+  });
+  const csv = rows.map(r => r.map(cell => {
+    const s = String(cell ?? "");
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+  }).join(",")).join("\n");
+  const blob = new Blob([csv], {type:"text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "ingredient_table.csv"; a.click();
+  URL.revokeObjectURL(url);
+  setStatus("CSV exported.","goodtxt");
+}
+
+function saveLocal(){
+  const data = { symptoms, ingredients, ingredientTable, confidenceTable, testLog };
+  localStorage.setItem("ingredient_table_builder_ocr_data", JSON.stringify(data));
+}
+
+function loadLocal(){
+  try{
+    const raw = localStorage.getItem("ingredient_table_builder_ocr_data");
+    if(!raw) return false;
+    const data = JSON.parse(raw);
+    if(!Array.isArray(data.symptoms) || !Array.isArray(data.ingredients) || typeof data.ingredientTable !== "object") return false;
+    symptoms = data.symptoms;
+    ingredients = data.ingredients;
+    ingredientTable = data.ingredientTable;
+    confidenceTable = data.confidenceTable || {};
+    testLog = Array.isArray(data.testLog) ? data.testLog : [];
+    for(const ing of ingredients){
+      if(!ingredientTable[ing]) ingredientTable[ing] = {};
+      if(!confidenceTable[ing]) confidenceTable[ing] = {};
+      for(const symptom of symptoms){
+        if(!(symptom in ingredientTable[ing])) ingredientTable[ing][symptom] = null;
+        if(!(symptom in confidenceTable[ing])) confidenceTable[ing][symptom] = null;
+      }
+    }
+    return true;
+  } catch(e){
+    return false;
+  }
+}
+
+function resetToDefaults(){
+  preloadDefaults();
+  document.getElementById("effectRows").innerHTML = "";
+  addEffectRow();
+  document.getElementById("jsonBox").value = "";
+  document.getElementById("virusName").value = "";
+  document.getElementById("conflictsBox").style.display = "none";
+  lastFillSource = "manual";
+  renderAll();
+  saveLocal();
+  setStatus("Reset to your preloaded defaults.","goodtxt");
+}
+
+function resetAll(){
+  if(!confirm("Clear everything?")) return;
+  symptoms = []; ingredients = []; ingredientTable = {}; testLog = [];
+  document.getElementById("symptomName").value = "";
+  document.getElementById("ingredientName").value = "";
+  document.getElementById("virusName").value = "";
+  document.getElementById("jsonBox").value = "";
+  document.getElementById("effectRows").innerHTML = "";
+  document.getElementById("screenshotInput").value = "";
+  clipboardImageFile = null;
+  document.getElementById("ocrRawText").value = "";
+  document.getElementById("conflictsBox").style.display = "none";
+  handleScreenshotPreview();
+  clearOCR();
+  addEffectRow();
+  lastFillSource = "manual";
+  renderAll();
+  saveLocal();
+  setStatus("Everything reset.","muted");
+}
+
+function setStatus(text, cls){
+  const el = document.getElementById("statusText");
+  el.className = cls || "muted";
+  el.textContent = text;
+}
+
+function renderAll(){
+  renderPills();
+  updateIngredientDropdown();
+  refreshEffectDropdowns();
+  renderTable();
+  renderLog();
+}
+
+function escapeHtml(str){
+  return String(str).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
+}
+
+function jsString(str){
+  return String(str).replaceAll("\\","\\\\").replaceAll("'","\\'");
+}
+
+(function init(){
+  const forceKey = "updated_virology_2026_full_preload_v1";
+  const alreadyLoadedThisVersion = localStorage.getItem(forceKey);
+
+  if(!alreadyLoadedThisVersion){
+    preloadDefaults();
+    saveLocal();
+    localStorage.setItem(forceKey, "yes");
+  } else {
+    const loaded = loadLocal();
+    if(!loaded) preloadDefaults();
+  }
+
+  addEffectRow();
+  renderAll();
+  document.getElementById("screenshotInput").addEventListener("change", handleScreenshotPreview);
+  if(typeof handlePasteEvent === "function"){
+    document.addEventListener("paste", handlePasteEvent);
+    const pasteZone = document.getElementById("pasteZone");
+    if(pasteZone){
+      pasteZone.addEventListener("paste", handlePasteEvent);
+      pasteZone.addEventListener("click", () => pasteZone.focus());
+    }
+  }
+})();
+</script>
+</body>
+</html>
