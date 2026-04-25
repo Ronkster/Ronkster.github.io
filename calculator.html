@@ -2,46 +2,36 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virus Solver Pro - Clean Build</title>
+    <title>Virus Solver - Logic Fixed</title>
     <style>
-        :root {
-            --bg: #0f172a;
-            --panel: #1e293b;
-            --accent: #38bdf8;
-            --text: #f1f5f9;
-            --line: #334155;
-            --good: #4ade80;
-        }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-        .grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; max-width: 1200px; margin: 0 auto; }
+        :root { --bg: #0f172a; --panel: #1e293b; --accent: #38bdf8; --text: #f1f5f9; --line: #334155; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1000px; margin: 0 auto; }
         .panel { background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid var(--line); }
-        .sym-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 350px; overflow-y: auto; padding: 10px; background: #0f172a; border-radius: 8px; border: 1px solid var(--line); }
-        .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 14px; }
-        input { width: 70px; background: #0f172a; color: white; border: 1px solid var(--line); border-radius: 4px; padding: 6px; }
-        button { background: var(--accent); color: #0f172a; border: none; padding: 14px; border-radius: 8px; font-weight: 800; cursor: pointer; width: 100%; margin-top: 10px; }
+        .sym-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 300px; overflow-y: auto; background: #0b1224; padding: 10px; border-radius: 8px; }
         .card { background: #020617; border-left: 4px solid var(--accent); padding: 15px; margin-bottom: 12px; border-radius: 6px; }
-        .muted { color: #94a3b8; font-size: 12px; }
-        .badge { background: #334155; color: var(--accent); padding: 2px 8px; border-radius: 4px; margin-right: 8px; }
-        h2 { margin-top: 0; color: var(--accent); font-size: 1.2rem; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
-        @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+        input { width: 60px; background: #0f172a; color: white; border: 1px solid var(--line); padding: 4px; }
+        button { background: var(--accent); color: #0f172a; border: none; padding: 15px; border-radius: 8px; font-weight: bold; width: 100%; cursor: pointer; }
+        .badge { background: var(--line); color: var(--accent); padding: 2px 6px; border-radius: 4px; margin-right: 8px; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div class="grid">
     <div class="panel">
-        <h2>1. Active Symptoms</h2>
+        <h2>1. Symptoms</h2>
         <div id="symptomList" class="sym-grid"></div>
-        <h2 style="margin-top:20px;">2. Settings</h2>
-        <div class="setting-row">Max Solutions <input type="number" id="limit" value="5"></div>
-        <div class="setting-row">Max Ingredients <input type="number" id="maxIng" value="30"></div>
-        <div class="setting-row">Time Limit (Sec) <input type="number" id="timeOut" value="5"></div>
-        <button onclick="runSolver()">EXECUTE SEARCH ⚡</button>
-        <div id="status" class="muted" style="margin-top:12px;">System Ready.</div>
+        <br>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+            <label>Max Ingredients: <input type="number" id="maxIng" value="50"></label>
+            <label>Find X Cures: <input type="number" id="limit" value="3"></label>
+            <button onclick="solve()">FIND CURES ⚡</button>
+        </div>
+        <p id="status" style="font-size: 12px; color: #94a3b8; margin-top: 10px;"></p>
     </div>
+
     <div class="panel">
-        <h2>Results</h2>
+        <h2>Solutions</h2>
         <div id="results"></div>
     </div>
 </div>
@@ -80,76 +70,65 @@ const table = {
     Myonex: {"Paralysis":-5,"Muscle Pain":15}
 };
 
-const symptoms = Object.keys(table).reduce((acc, curr) => {
-    Object.keys(table[curr]).forEach(s => { if(!acc.includes(s)) acc.push(s); });
-    return acc;
-}, []).sort();
-
+const symptoms = ["Chills", "Fainting", "Fatigue", "Vertigo", "Paralysis", "Fever", "Blindness", "Migraine", "Eye Irritation", "Muscle Pain", "Nausea", "Vomiting", "Coma", "Organ Failure", "Hallucinations", "Skin Rash", "Sneezing", "Cough", "Sore Throat"];
 const symDiv = document.getElementById("symptomList");
 symptoms.forEach(s => {
-    symDiv.innerHTML += `<label style="display:flex;align-items:center;gap:8px;padding:4px;"><input type="checkbox" class="sc" value="${s}"> ${s}</label>`;
+    symDiv.innerHTML += `<label style="display:block;"><input type="checkbox" class="sc" value="${s}"> ${s}</label>`;
 });
 
-function runSolver() {
+function solve() {
     const selected = Array.from(document.querySelectorAll(".sc:checked")).map(i => i.value);
-    if (!selected.length) return alert("Select symptoms!");
+    if (!selected.length) return alert("Pick a symptom!");
 
+    const maxIng = parseInt(document.getElementById("maxIng").value);
     const limit = parseInt(document.getElementById("limit").value);
-    const maxI = parseInt(document.getElementById("maxIng").value);
-    const timeLimit = parseInt(document.getElementById("timeOut").value);
-    const deadline = performance.now() + (timeLimit * 1000);
+    const resultsDiv = document.getElementById("results");
+    resultsDiv.innerHTML = "";
     
-    const resDiv = document.getElementById("results");
-    const statusDiv = document.getElementById("status");
-    resDiv.innerHTML = "";
-    statusDiv.innerText = "Searching... ⚡";
+    let foundCures = [];
 
-    let foundCures = new Set();
-    let attempts = 0;
-    const ingredientNames = Object.keys(table);
-
-    while (performance.now() < deadline && foundCures.size < limit) {
-        attempts++;
+    // We run the loop X times to find different "random" paths to 100%
+    for (let attempt = 0; attempt < 500 && foundCures.length < limit; attempt++) {
         let currentCombo = [];
-        let currentTotals = {};
-        symptoms.forEach(s => currentTotals[s] = 0);
+        let totals = {};
+        selected.forEach(s => totals[s] = 0);
 
-        // Initial Seed
-        for(let i=0; i<3; i++) {
-            let r = ingredientNames[Math.floor(Math.random()*ingredientNames.length)];
-            currentCombo.push(r);
-            for(let s in table[r]) currentTotals[s] += table[r][s];
-        }
-
-        // Tweak
-        for(let iter=0; iter<80; iter++) {
-            if(selected.every(s => currentTotals[s] >= 100)) {
-                foundCures.add(JSON.stringify(currentCombo.sort()));
+        for (let i = 0; i < maxIng; i++) {
+            // Check if cured
+            if (selected.every(s => totals[s] >= 100)) {
+                let sorted = currentCombo.sort().join("|");
+                if (!foundCures.includes(sorted)) foundCures.push(sorted);
                 break;
             }
-            if(Math.random() < 0.5 && currentCombo.length < maxI) {
-                let r = ingredientNames[Math.floor(Math.random()*ingredientNames.length)];
-                currentCombo.push(r);
-                for(let s in table[r]) currentTotals[s] += table[r][s];
-            } else if(currentCombo.length > 1) {
-                let idx = Math.floor(Math.random()*currentCombo.length);
-                let removed = currentCombo.splice(idx, 1)[0];
-                for(let s in table[removed]) currentTotals[s] -= table[removed][s];
+
+            // SMART PICK: Find ingredients that help our MISSING symptoms
+            let missingSymptom = selected.find(s => totals[s] < 100);
+            let candidates = Object.keys(table).filter(ing => table[ing][missingSymptom] > 0);
+            
+            let pick = candidates[Math.floor(Math.random() * candidates.length)];
+            if (!pick) break; // Should not happen with valid data
+
+            currentCombo.push(pick);
+            for (let s in table[pick]) {
+                if (selected.includes(s)) totals[s] += table[pick][s];
             }
         }
     }
 
-    statusDiv.innerText = `Done. Found ${foundCures.size} solutions.`;
-    if(!foundCures.size) resDiv.innerHTML = "<p>No cures found. Increase ingredients or time.</p>";
-    foundCures.forEach(json => {
-        let list = JSON.parse(json);
-        let counts = {};
-        list.forEach(x => counts[x] = (counts[x] || 0) + 1);
-        let html = `<div class="card">`;
-        for(let n in counts) html += `<div><span class="badge">${counts[n]}x</span> ${n}</div>`;
-        html += `<div class="muted" style="margin-top:8px;">Size: ${list.length}</div></div>`;
-        resDiv.innerHTML += html;
-    });
+    if (foundCures.length === 0) {
+        resultsDiv.innerHTML = "No cure found. Symptoms might be impossible with current Max Ingredients.";
+    } else {
+        foundCures.forEach(cureStr => {
+            let items = cureStr.split("|");
+            let counts = {};
+            items.forEach(x => counts[x] = (counts[x] || 0) + 1);
+            
+            let html = `<div class="card">`;
+            for (let name in counts) html += `<div><span class="badge">${counts[name]}x</span> ${name}</div>`;
+            html += `<div style="font-size:11px; margin-top:5px; color:#4ade80;">Total size: ${items.length} ingredients</div></div>`;
+            resultsDiv.innerHTML += html;
+        });
+    }
 }
 </script>
 </body>
