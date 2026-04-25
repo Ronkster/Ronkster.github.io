@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Virus Solver Ultra-Fast</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virus Solver Pro - Clean Build</title>
     <style>
         :root {
             --bg: #0f172a;
@@ -13,20 +13,17 @@
             --line: #334155;
             --good: #4ade80;
         }
-        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
         .grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; max-width: 1200px; margin: 0 auto; }
-        .panel { background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid var(--line); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .panel { background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid var(--line); }
         .sym-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 350px; overflow-y: auto; padding: 10px; background: #0f172a; border-radius: 8px; border: 1px solid var(--line); }
         .setting-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 14px; }
-        input { width: 70px; background: #0f172a; color: white; border: 1px solid var(--line); border-radius: 4px; padding: 6px; font-weight: bold; }
-        button { background: var(--accent); color: #0f172a; border: none; padding: 14px; border-radius: 8px; font-weight: 800; cursor: pointer; width: 100%; margin-top: 10px; transition: transform 0.1s; }
-        button:active { transform: scale(0.98); }
+        input { width: 70px; background: #0f172a; color: white; border: 1px solid var(--line); border-radius: 4px; padding: 6px; }
+        button { background: var(--accent); color: #0f172a; border: none; padding: 14px; border-radius: 8px; font-weight: 800; cursor: pointer; width: 100%; margin-top: 10px; }
         .card { background: #020617; border-left: 4px solid var(--accent); padding: 15px; margin-bottom: 12px; border-radius: 6px; }
         .muted { color: #94a3b8; font-size: 12px; }
-        .badge { background: #334155; color: var(--accent); padding: 2px 8px; border-radius: 4px; margin-right: 8px; font-family: monospace; }
+        .badge { background: #334155; color: var(--accent); padding: 2px 8px; border-radius: 4px; margin-right: 8px; }
         h2 { margin-top: 0; color: var(--accent); font-size: 1.2rem; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
-        label { cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: 4px; }
-        label:hover { background: #1e293b; }
         @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
     </style>
 </head>
@@ -36,24 +33,20 @@
     <div class="panel">
         <h2>1. Active Symptoms</h2>
         <div id="symptomList" class="sym-grid"></div>
-        
-        <h2 style="margin-top:20px;">2. Search Engine Settings</h2>
-        <div class="setting-row">Max Solutions to Find <input type="number" id="limit" value="5"></div>
-        <div class="setting-row">Max Ingredients in Cure <input type="number" id="maxIng" value="30"></div>
-        <div class="setting-row">Time Limit (Seconds) <input type="number" id="timeOut" value="5"></div>
-        
+        <h2 style="margin-top:20px;">2. Settings</h2>
+        <div class="setting-row">Max Solutions <input type="number" id="limit" value="5"></div>
+        <div class="setting-row">Max Ingredients <input type="number" id="maxIng" value="30"></div>
+        <div class="setting-row">Time Limit (Sec) <input type="number" id="timeOut" value="5"></div>
         <button onclick="runSolver()">EXECUTE SEARCH ⚡</button>
         <div id="status" class="muted" style="margin-top:12px;">System Ready.</div>
     </div>
-
     <div class="panel">
-        <h2>Optimal Solutions</h2>
+        <h2>Results</h2>
         <div id="results"></div>
     </div>
 </div>
 
 <script>
-// --- RELIABLE INGREDIENT DATA ---
 const table = {
     Dermatrix: {"Eye Irritation":5,"Skin Rash":10,"Sneezing":-5},
     Neurovex: {"Fainting":-5,"Migraine":-5,"Hallucinations":15},
@@ -87,22 +80,19 @@ const table = {
     Myonex: {"Paralysis":-5,"Muscle Pain":15}
 };
 
-const symptoms = [
-    "Chills", "Fainting", "Fatigue", "Vertigo", "Paralysis", "Fever", "Blindness",
-    "Migraine", "Eye Irritation", "Muscle Pain", "Nausea", "Vomiting", "Coma",
-    "Organ Failure", "Hallucinations", "Skin Rash", "Sneezing", "Cough", "Sore Throat"
-];
+const symptoms = Object.keys(table).reduce((acc, curr) => {
+    Object.keys(table[curr]).forEach(s => { if(!acc.includes(s)) acc.push(s); });
+    return acc;
+}, []).sort();
 
-const ingredientNames = Object.keys(table);
 const symDiv = document.getElementById("symptomList");
-
 symptoms.forEach(s => {
-    symDiv.innerHTML += `<label><input type="checkbox" class="sc" value="${s}"> ${s}</label>`;
+    symDiv.innerHTML += `<label style="display:flex;align-items:center;gap:8px;padding:4px;"><input type="checkbox" class="sc" value="${s}"> ${s}</label>`;
 });
 
 function runSolver() {
     const selected = Array.from(document.querySelectorAll(".sc:checked")).map(i => i.value);
-    if (!selected.length) return alert("Please select at least one symptom!");
+    if (!selected.length) return alert("Select symptoms!");
 
     const limit = parseInt(document.getElementById("limit").value);
     const maxI = parseInt(document.getElementById("maxIng").value);
@@ -116,83 +106,51 @@ function runSolver() {
 
     let foundCures = new Set();
     let attempts = 0;
+    const ingredientNames = Object.keys(table);
 
-    // --- HILL CLIMBER LOGIC ---
     while (performance.now() < deadline && foundCures.size < limit) {
         attempts++;
         let currentCombo = [];
         let currentTotals = {};
         symptoms.forEach(s => currentTotals[s] = 0);
 
-        // 1. Initial random seed (starting point)
-        const seedSize = Math.min(maxI, 4);
-        for(let i=0; i < seedSize; i++) {
-            let randIng = ingredientNames[Math.floor(Math.random() * ingredientNames.length)];
-            currentCombo.push(randIng);
-            for(let s in table[randIng]) currentTotals[s] += table[randIng][s];
+        // Initial Seed
+        for(let i=0; i<3; i++) {
+            let r = ingredientNames[Math.floor(Math.random()*ingredientNames.length)];
+            currentCombo.push(r);
+            for(let s in table[r]) currentTotals[s] += table[r][s];
         }
 
-        // 2. Tweak loop (Hill Climbing)
-        for(let iter=0; iter < 100; iter++) {
-            // Check if we hit 100% for all selected
-            let isCure = selected.every(s => currentTotals[s] >= 100);
-            
-            if(isCure) {
+        // Tweak
+        for(let iter=0; iter<80; iter++) {
+            if(selected.every(s => currentTotals[s] >= 100)) {
                 foundCures.add(JSON.stringify(currentCombo.sort()));
                 break;
             }
-
-            // Mutation: Try to get closer to 100%
-            let mode = Math.random();
-            if (mode < 0.5 && currentCombo.length < maxI) {
-                // ADD: Pick an ingredient that helps a symptom we are low on
-                let targetSymptom = selected[Math.floor(Math.random() * selected.length)];
-                let candidates = ingredientNames.filter(name => (table[name][targetSymptom] || 0) > 0);
-                let pick = candidates.length ? candidates[Math.floor(Math.random()*candidates.length)] : ingredientNames[Math.floor(Math.random()*ingredientNames.length)];
-                
-                currentCombo.push(pick);
-                for(let s in table[pick]) currentTotals[s] += table[pick][s];
-            } 
-            else if (currentCombo.length > 1) {
-                // REMOVE: Drop a random ingredient
-                let idx = Math.floor(Math.random() * currentCombo.length);
+            if(Math.random() < 0.5 && currentCombo.length < maxI) {
+                let r = ingredientNames[Math.floor(Math.random()*ingredientNames.length)];
+                currentCombo.push(r);
+                for(let s in table[r]) currentTotals[s] += table[r][s];
+            } else if(currentCombo.length > 1) {
+                let idx = Math.floor(Math.random()*currentCombo.length);
                 let removed = currentCombo.splice(idx, 1)[0];
                 for(let s in table[removed]) currentTotals[s] -= table[removed][s];
             }
         }
     }
 
-    // --- RENDER RESULTS ---
-    const elapsed = ((performance.now() - (deadline - timeLimit*1000)) / 1000).toFixed(2);
-    statusDiv.innerText = `Searched ~${attempts.toLocaleString()} paths in ${elapsed}s. Found ${foundCures.size} unique cures.`;
-
-    if(foundCures.size === 0) {
-        resDiv.innerHTML = `<p style="color:#ef4444;">No cure found within ${maxI} ingredients. Try increasing the limit or checking fewer symptoms.</p>`;
-    } else {
-        foundCures.forEach(json => {
-            let list = JSON.parse(json);
-            let counts = {};
-            list.forEach(x => counts[x] = (counts[x] || 0) + 1);
-            
-            let html = `<div class="card">`;
-            for(let name in counts) {
-                html += `<div><span class="badge">${counts[name]}x</span> <b>${name}</b></div>`;
-            }
-            
-            // Show stats for this cure
-            let stats = selected.map(s => {
-                let total = 0;
-                list.forEach(ing => total += (table[ing][s] || 0));
-                return `${s}: <span style="color:#4ade80">${total}%</span>`;
-            }).join(" | ");
-
-            html += `<div class="muted" style="margin-top:10px; border-top: 1px solid #334155; padding-top:5px;">${stats}</div>`;
-            html += `<div class="muted">Total Ingredients: ${list.length}</div></div>`;
-            resDiv.innerHTML += html;
-        });
-    }
+    statusDiv.innerText = `Done. Found ${foundCures.size} solutions.`;
+    if(!foundCures.size) resDiv.innerHTML = "<p>No cures found. Increase ingredients or time.</p>";
+    foundCures.forEach(json => {
+        let list = JSON.parse(json);
+        let counts = {};
+        list.forEach(x => counts[x] = (counts[x] || 0) + 1);
+        let html = `<div class="card">`;
+        for(let n in counts) html += `<div><span class="badge">${counts[n]}x</span> ${n}</div>`;
+        html += `<div class="muted" style="margin-top:8px;">Size: ${list.length}</div></div>`;
+        resDiv.innerHTML += html;
+    });
 }
 </script>
-
 </body>
 </html>
