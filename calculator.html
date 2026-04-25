@@ -1,209 +1,184 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Virus Solver v3</title>
-
-<style>
-body {
-  font-family: Arial;
-  background: #0f172a;
-  color: #e5e7eb;
-  padding: 20px;
-}
-
-h1 { color: #38bdf8; }
-
-.container {
-  display: flex;
-  gap: 20px;
-}
-
-.panel {
-  background: #1e293b;
-  padding: 15px;
-  border-radius: 10px;
-  flex: 1;
-  max-height: 500px;
-  overflow-y: auto;
-}
-
-button {
-  background: #38bdf8;
-  border: none;
-  padding: 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-button:hover { background: #0ea5e9; }
-
-.result {
-  background: #020617;
-  padding: 10px;
-  margin-top: 10px;
-  border-radius: 6px;
-}
-
-.good { color: #4ade80; }
-</style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Virus Solver Pro v3</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --text: #e5e7eb;
+            --accent: #38bdf8;
+            --good: #4ade80;
+            --line: #334155;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .panel { background: var(--panel); padding: 20px; border-radius: 12px; border: 1px solid var(--line); height: fit-content; }
+        h1 { color: var(--accent); grid-column: span 2; margin-top: 0; }
+        .symptom-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 400px; overflow-y: auto; padding-right: 10px; }
+        label { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+        input[type="number"] { width: 60px; padding: 5px; border-radius: 4px; border: 1px solid var(--line); background: #0f172a; color: white; }
+        button { 
+            background: var(--accent); color: #0f172a; border: none; padding: 12px 20px; 
+            border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 15px;
+        }
+        button:hover { opacity: 0.9; }
+        .result-card { background: #020617; padding: 15px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid var(--accent); }
+        .good { color: var(--good); font-weight: bold; }
+        .muted { color: #94a3b8; font-size: 12px; }
+        @media (max-width: 768px) { .container { grid-template-columns: 1fr; } h1 { grid-column: span 1; } }
+    </style>
 </head>
-
 <body>
 
-<h1>🧪 Virus Solver v3</h1>
-
-<label>Max Ingredients:</label>
-<input type="number" id="maxSize" value="4" min="1" max="7">
-<button onclick="solve()">Solve</button>
-
 <div class="container">
-  <div class="panel">
-    <h3>Symptoms</h3>
-    <div id="symptoms"></div>
-  </div>
+    <h1>🧪 Virus Solver Pro</h1>
 
-  <div class="panel">
-    <h3>Best Combos</h3>
-    <div id="results"></div>
-  </div>
+    <div class="panel">
+        <h3>1. Select Active Symptoms</h3>
+        <div id="symptomsUI" class="symptom-list"></div>
+        
+        <hr style="border: 0; border-top: 1px solid var(--line); margin: 20px 0;">
+        
+        <h3>2. Settings</h3>
+        <label>Max Ingredients in Cure: <input type="number" id="maxSize" value="4" min="1" max="6"></label>
+        <p class="muted">Note: Setting max ingredients to 5+ may take a few seconds.</p>
+        <button onclick="solve()">FIND CURES</button>
+    </div>
+
+    <div class="panel">
+        <h3>3. Results</h3>
+        <div id="status">Ready.</div>
+        <div id="results"></div>
+    </div>
 </div>
 
 <script>
-// ===== FULL DATA (FROM YOUR TABLE) =====
+// --- DATA ---
 const symptoms = [
-"Chills","Fainting","Fatigue","Vertigo","Paralysis","Fever","Blindness",
-"Migraine","Eye Irritation","Muscle Pain","Nausea","Vomiting","Coma",
-"Organ Failure","Hallucinations","Skin Rash","Sneezing","Cough","Sore Throat"
+    "Chills", "Fainting", "Fatigue", "Vertigo", "Paralysis", "Fever", "Blindness",
+    "Migraine", "Eye Irritation", "Muscle Pain", "Nausea", "Vomiting", "Coma",
+    "Organ Failure", "Hallucinations", "Skin Rash", "Sneezing", "Cough", "Sore Throat"
 ];
 
-const ingredients = [
-"Dermatrix","Neurovex","Morvexis","Oculyte","Lumicet","Bronchex",
-"Myocordin","Hallucor","Virexon","Organex","Velmorin","Trivexol",
-"Neurozil","Cryostin","Throxil","Dermavax","Synaptix","Clairion",
-"Xenoviralyn","Luxbane","Stabilon","Zypheral","Paralynth","Vertigen",
-"Organilax","Emetrolix","Pulmovar","Somnora","Talorinex","Myonex"
-];
-
-// ===== CORE VALUE TABLE (TRIMMED = NON ZERO ONLY FOR SPEED) =====
 const table = {
-Dermatrix: {"Eye Irritation":5,"Skin Rash":10,"Sneezing":-5},
-Neurovex: {"Fainting":-5,"Migraine":-5,"Hallucinations":15},
-Morvexis: {"Sneezing":-5,"Cough":15},
-Oculyte: {"Eye Irritation":10,"Skin Rash":-5},
-Lumicet: {"Migraine":-5,"Eye Irritation":15},
-Bronchex: {"Cough":10,"Sore Throat":-5},
-Myocordin: {"Fatigue":-5,"Paralysis":5,"Muscle Pain":10},
-Hallucor: {"Fainting":-5,"Hallucinations":15},
-Virexon: {"Nausea":15,"Vomiting":-5},
-Organex: {"Coma":-5,"Organ Failure":15},
-Velmorin: {"Fatigue":10,"Fever":-5},
-Trivexol: {"Chills":-5,"Fatigue":5,"Fever":10},
-Neurozil: {"Migraine":15,"Eye Irritation":-5},
-Cryostin: {"Chills":-5,"Fever":10},
-Throxil: {"Cough":-5,"Sore Throat":15},
-Dermavax: {"Eye Irritation":-5,"Skin Rash":15},
-Synaptix: {"Fainting":15,"Hallucinations":-5},
-Clairion: {"Blindness":-5,"Migraine":10},
-Xenoviralyn: {"Chills":15,"Fever":-5},
-Luxbane: {"Blindness":15,"Migraine":-5},
-Stabilon: {"Fainting":10,"Vertigo":-5},
-Zypheral: {"Sneezing":15,"Cough":-5},
-Paralynth: {"Paralysis":15,"Muscle Pain":-5},
-Vertigen: {"Fainting":-5,"Vertigo":15},
-Organilax: {"Paralysis":-5,"Coma":5,"Organ Failure":10},
-Emetrolix: {"Nausea":-5,"Vomiting":15},
-Pulmovar: {"Sneezing":-5,"Cough":10,"Sore Throat":5},
-Somnora: {"Coma":15,"Organ Failure":-5},
-Talorinex: {"Fatigue":-5,"Fever":15},
-Myonex: {"Paralysis":-5,"Muscle Pain":15}
+    Dermatrix: {"Eye Irritation":5,"Skin Rash":10,"Sneezing":-5},
+    Neurovex: {"Fainting":-5,"Migraine":-5,"Hallucinations":15},
+    Morvexis: {"Sneezing":-5,"Cough":15},
+    Oculyte: {"Eye Irritation":10,"Skin Rash":-5},
+    Lumicet: {"Migraine":-5,"Eye Irritation":15},
+    Bronchex: {"Cough":10,"Sore Throat":-5},
+    Myocordin: {"Fatigue":-5,"Paralysis":5,"Muscle Pain":10},
+    Hallucor: {"Fainting":-5,"Hallucinations":15},
+    Virexon: {"Nausea":15,"Vomiting":-5},
+    Organex: {"Coma":-5,"Organ Failure":15},
+    Velmorin: {"Fatigue":10,"Fever":-5},
+    Trivexol: {"Chills":-5,"Fatigue":5,"Fever":10},
+    Neurozil: {"Migraine":15,"Eye Irritation":-5},
+    Cryostin: {"Chills":-5,"Fever":10},
+    Throxil: {"Cough":-5,"Sore Throat":15},
+    Dermavax: {"Eye Irritation":-5,"Skin Rash":15},
+    Synaptix: {"Fainting":15,"Hallucinations":-5},
+    Clairion: {"Blindness":-5,"Migraine":10},
+    Xenoviralyn: {"Chills":15,"Fever":-5},
+    Luxbane: {"Blindness":15,"Migraine":-5},
+    Stabilon: {"Fainting":10,"Vertigo":-5},
+    Zypheral: {"Sneezing":15,"Cough":-5},
+    Paralynth: {"Paralysis":15,"Muscle Pain":-5},
+    Vertigen: {"Fainting":-5,"Vertigo":15},
+    Organilax: {"Paralysis":-5,"Coma":5,"Organ Failure":10},
+    Emetrolix: {"Nausea":-5,"Vomiting":15},
+    Pulmovar: {"Sneezing":-5,"Cough":10,"Sore Throat":5},
+    Somnora: {"Coma":15,"Organ Failure":-5},
+    Talorinex: {"Fatigue":-5,"Fever":15},
+    Myonex: {"Paralysis":-5,"Muscle Pain":15}
 };
 
-// ===== BUILD UI =====
-const symDiv = document.getElementById("symptoms");
+const ingredientNames = Object.keys(table);
 
+// --- UI INIT ---
+const symDiv = document.getElementById("symptomsUI");
 symptoms.forEach(s => {
-  symDiv.innerHTML += `<label><input type="checkbox" value="${s}"> ${s}</label><br>`;
+    symDiv.innerHTML += `<label><input type="checkbox" class="sym-check" value="${s}"> ${s}</label>`;
 });
 
-// ===== COMBO GEN =====
-function combos(arr, max) {
-  let res = [];
-
-  function go(start, cur) {
-    if (cur.length) res.push([...cur]);
-    if (cur.length === max) return;
-
-    for (let i = start; i < arr.length; i++) {
-      cur.push(arr[i]);
-      go(i + 1, cur);
-      cur.pop();
-    }
-  }
-
-  go(0, []);
-  return res;
-}
-
-// ===== SOLVER =====
+// --- CORE SOLVER ---
 function solve() {
-  const selected = [...document.querySelectorAll("input:checked")]
-    .map(x => x.value);
+    const selected = Array.from(document.querySelectorAll(".sym-check:checked")).map(x => x.value);
+    if (selected.length === 0) return alert("Select at least one symptom!");
 
-  const maxSize = +document.getElementById("maxSize").value;
+    const maxSize = parseInt(document.getElementById("maxSize").value);
+    const resultsDiv = document.getElementById("results");
+    const statusDiv = document.getElementById("status");
+    
+    resultsDiv.innerHTML = "";
+    statusDiv.innerHTML = "Searching... 🏃‍♂️";
 
-  const all = combos(ingredients, maxSize);
-  let results = [];
+    let foundCures = [];
+    let count = 0;
 
-  for (let combo of all) {
-    let totals = {};
-    symptoms.forEach(s => totals[s] = 0);
+    // Recursive search that doesn't store state unnecessarily
+    function findCombos(start, currentCombo) {
+        if (foundCures.length >= 10) return; // Limit to 10 best cures to save memory
 
-    for (let ing of combo) {
-      for (let s in table[ing]) {
-        totals[s] += table[ing][s];
-      }
+        if (currentCombo.length > 0) {
+            const totals = {};
+            symptoms.forEach(s => totals[s] = 0);
+            
+            for (let ing of currentCombo) {
+                for (let s in table[ing]) {
+                    totals[s] += table[ing][s];
+                }
+            }
+
+            // Check if it satisfies all selected symptoms (>= 100%)
+            let isCure = selected.every(s => totals[s] >= 100);
+            
+            if (isCure) {
+                foundCures.push({
+                    ingredients: [...currentCombo],
+                    totals: {...totals}
+                });
+            }
+        }
+
+        if (currentCombo.length >= maxSize) return;
+
+        for (let i = start; i < ingredientNames.length; i++) {
+            currentCombo.push(ingredientNames[i]);
+            findCombos(i + 1, currentCombo); // i + 1 means we don't repeat the same ingredient
+            currentCombo.pop();
+        }
     }
 
-    let score = 0;
-    let perfect = true;
-
-    for (let s of selected) {
-      score += totals[s];
-      if (totals[s] < 100) perfect = false;
-    }
-
-    results.push({combo, score, totals, perfect});
-  }
-
-  results.sort((a,b)=>b.score-a.score);
-
-  show(results.slice(0,20));
-}
-
-// ===== DISPLAY =====
-function show(list) {
-  const div = document.getElementById("results");
-  div.innerHTML = "";
-
-  list.forEach(r => {
-    let el = document.createElement("div");
-    el.className = "result";
-
-    let text = `<b>${r.combo.join(", ")}</b><br>`;
-    text += `Score: ${r.score} `;
-    if (r.perfect) text += `<span class="good">PERFECT</span>`;
-    text += "<br>";
-
-    for (let s in r.totals) {
-      if (r.totals[s] !== 0) {
-        text += `${s}: ${r.totals[s]}<br>`;
-      }
-    }
-
-    el.innerHTML = text;
-    div.appendChild(el);
-  });
+    // Wrap in a timeout so the UI doesn't freeze
+    setTimeout(() => {
+        findCombos(0, []);
+        
+        statusDiv.innerHTML = `Search Complete. Found ${foundCures.length} cures.`;
+        
+        if (foundCures.length === 0) {
+            resultsDiv.innerHTML = "<p>No exact cures found within that ingredient limit.</p>";
+        } else {
+            foundCures.forEach(cure => {
+                let card = document.createElement("div");
+                card.className = "result-card";
+                let ingList = cure.ingredients.map(ing => `<b>${ing}</b>`).join(" + ");
+                let effectList = selected.map(s => `${s}: <span class="good">${cure.totals[s]}%</span>`).join("<br>");
+                
+                card.innerHTML = `<div>${ingList}</div><div class="muted" style="margin-top:8px;">${effectList}</div>`;
+                resultsDiv.appendChild(card);
+            });
+        }
+    }, 50);
 }
 </script>
 
