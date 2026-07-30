@@ -16,6 +16,7 @@
         .controls { margin-bottom: 20px; border-top: 1px solid #334155; padding-top: 20px; }
         #results { margin-top: 20px; }
         b { color: #60a5fa; }
+        .meta { color: #94a3b8; font-size: 12px; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -73,67 +74,312 @@
             container.innerHTML += `<label class="sc-label"><input type="checkbox" class="sc" value="${s}">${s}</label>`;
         });
 
-        function solve() {
-            const selected = Array.from(document.querySelectorAll(".sc:checked")).map(i => i.value);
-            if (!selected.length) return alert("Select symptoms!");
+        // ---- A* solver, decomposed by independent symptom clusters ----
+        // Many ingredients here only ever touch 2-3 symptoms each, forming tight,
+        // isolated clusters (e.g. Virexon/Emetrolix only ever affect Nausea and
+        // Vomiting - nothing else). Symptoms in different clusters never share an
+        // ingredient, so a full cure is really just several small, independent
+        // puzzles solved side by side and merged together.
+        //
+        // Trying to solve all selected symptoms as ONE big joint search (as the
+        // previous version did) blows up combinatorially once several such
+        // clusters are combined, even with a good heuristic - because the search
+        // has to explore every possible interleaving of moves across clusters
+        // that don't actually interact. Solving each cluster on its own first,
+        // then merging the ingredient lists, sidesteps that explosion entirely
+        // and is both correct and dramatically faster.
 
-            const maxIng = parseInt(document.getElementById("maxIng").value) || 60;
-            const limit = parseInt(document.getElementById("limit").value) || 5;
-            const resultsDiv = document.getElementById("results");
-            resultsDiv.innerHTML = "Searching for perfect balance...";
+        // ---- Exact linear-Diophantine solver ----
+        // Hitting several symptoms at once exactly is really a system of linear
+        // equations: for each selected symptom, (sum of ingredient_count * that
+        // ingredient's effect) must equal 100. Searching for that state-by-state
+        // (as earlier versions of this tool did, via BFS/A*) works for small
+        // clusters but can need millions of steps once several symptoms are
+        // tightly linked through shared ingredients (e.g. Muscle Pain, Paralysis,
+        // Coma, Organ Failure, Fatigue, Fever and Chills all end up connected
+        // once Coma and Fatigue are both selected).
+        //
+        // Instead, this solves the equations directly with exact fraction
+        // arithmetic (Gaussian elimination - no floating-point rounding, so
+        // results are always exact), which expresses most ingredient counts in
+        // terms of a small number of "free" ingredients. It then only has to
+        // search over those free ingredients (far fewer dimensions than the full
+        // ingredient list) to find a combination where everything comes out as a
+        // non-negative whole number. This is the standard approach for solving
+        // "make these numbers hit exact targets" problems and scales far better
+        // than blind search as more symptoms get linked together.
 
-            let foundCures = new Set();
-            let attempts = 0;
-
-            while (foundCures.size < limit && attempts < 20000) {
-                attempts++;
-                let currentCombo = [];
-                let totals = {};
-                allSymptoms.forEach(s => totals[s] = 0);
-
-                for (let i = 0; i < maxIng; i++) {
-                    if (selected.every(s => totals[s] === 100)) {
-                        foundCures.add(JSON.stringify(currentCombo.sort()));
-                        break;
-                    }
-
-                    let target = selected.find(s => totals[s] < 100);
-                    if (!target) break;
-
-                    let gap = 100 - totals[target];
-                    let ingredients = Object.keys(ingredientTable);
-
-                    let candidates = ingredients.filter(ing => {
-                        let val = ingredientTable[ing][target] || 0;
-                        return val > 0 && val <= gap;
-                    });
-
-                    if (candidates.length === 0) {
-                        candidates = ingredients.filter(ing => (ingredientTable[ing][target] || 0) > 0);
-                    }
-
-                    let pick = candidates[Math.floor(Math.random() * candidates.length)];
-                    currentCombo.push(pick);
-                    for (let s in ingredientTable[pick]) totals[s] += ingredientTable[pick][s];
-                }
+        function gcdBig(a, b) { a = a < 0n ? -a : a; b = b < 0n ? -b : b; while (b) { [a, b] = [b, a % b]; } return a === 0n ? 1n : a; }
+        class Frac {
+            constructor(n, d = 1n) {
+                if (typeof n === "number") n = BigInt(n);
+                if (typeof d === "number") d = BigInt(d);
+                if (d < 0n) { n = -n; d = -d; }
+                const g = gcdBig(n < 0n ? -n : n, d);
+                this.n = g === 0n ? n : n / g;
+                this.d = g === 0n ? d : d / g;
             }
-            render(foundCures, resultsDiv, selected);
+            add(o) { return new Frac(this.n * o.d + o.n * this.d, this.d * o.d); }
+            sub(o) { return new Frac(this.n * o.d - o.n * this.d, this.d * o.d); }
+            mul(o) { return new Frac(this.n * o.n, this.d * o.d); }
+            div(o) { return new Frac(this.n * o.d, this.d * o.n); }
+            isZero() { return this.n === 0n; }
+            isInteger() { return this.d === 1n; }
         }
 
-        function render(set, container, selected) {
-            container.innerHTML = set.size ? "" : "No exact matches. Increase max ingredients?";
-            set.forEach(json => {
-                const list = JSON.parse(json);
+        // Reduce [effects | 100] to reduced row-echelon form, tracking pivot columns.
+        function rref(matrix) {
+            const rows = matrix.length, cols = matrix[0].length;
+            let lead = 0;
+            const pivotCols = [];
+            for (let r = 0; r < rows && lead < cols - 1; r++) {
+                let i = r;
+                while (i < rows && matrix[i][lead].isZero()) i++;
+                if (i === rows) { lead++; r--; continue; }
+                [matrix[r], matrix[i]] = [matrix[i], matrix[r]];
+                const pivotVal = matrix[r][lead];
+                for (let j = 0; j < cols; j++) matrix[r][j] = matrix[r][j].div(pivotVal);
+                for (let i2 = 0; i2 < rows; i2++) {
+                    if (i2 === r) continue;
+                    const factor = matrix[i2][lead];
+                    if (factor.isZero()) continue;
+                    for (let j = 0; j < cols; j++) matrix[i2][j] = matrix[i2][j].sub(factor.mul(matrix[r][j]));
+                }
+                pivotCols.push(lead);
+                lead++;
+            }
+            return { matrix, pivotCols };
+        }
+
+        // Groups selected symptoms into independent clusters: two symptoms end up
+        // in the same group if any ingredient affects both of them (directly or
+        // transitively through a shared ingredient chain).
+        function getComponents(selected) {
+            const ingredientNames = Object.keys(ingredientTable);
+            const n = selected.length;
+            const parent = Array.from({ length: n }, (_, i) => i);
+            function find(x) { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+            function union(a, b) { a = find(a); b = find(b); if (a !== b) parent[a] = b; }
+
+            for (const name of ingredientNames) {
+                const touched = [];
+                for (let s = 0; s < n; s++) {
+                    if ((ingredientTable[name][selected[s]] || 0) !== 0) touched.push(s);
+                }
+                for (let k = 1; k < touched.length; k++) union(touched[0], touched[k]);
+            }
+            const groups = new Map();
+            for (let s = 0; s < n; s++) {
+                const r = find(s);
+                if (!groups.has(r)) groups.set(r, []);
+                groups.get(r).push(selected[s]);
+            }
+            return [...groups.values()];
+        }
+
+        // Finds up to `wanted` distinct exact-match ingredient combos for a single
+        // (independent) cluster of symptoms, using exact equation-solving.
+        async function solveCluster(selected, maxIng, wanted, onProgress) {
+            const relevantNames = Object.keys(ingredientTable).filter(name =>
+                selected.some(s => (ingredientTable[name][s] || 0) !== 0)
+            );
+            const effects = relevantNames.map(name => selected.map(s => ingredientTable[name][s] || 0));
+            const k = selected.length, m = relevantNames.length;
+
+            const aug = [];
+            for (let s = 0; s < k; s++) {
+                const row = [];
+                for (let i = 0; i < m; i++) row.push(new Frac(effects[i][s]));
+                row.push(new Frac(100));
+                aug.push(row);
+            }
+            const { matrix, pivotCols } = rref(aug);
+            const pivotSet = new Set(pivotCols);
+            const freeCols = [];
+            for (let c = 0; c < m; c++) if (!pivotSet.has(c)) freeCols.push(c);
+
+            // An all-zero row on the left with a nonzero right side means the
+            // targets are mathematically impossible to hit at all with these ingredients.
+            for (let r = pivotCols.length; r < matrix.length; r++) {
+                const row = matrix[r];
+                const allZeroLHS = row.slice(0, m).every(f => f.isZero());
+                if (allZeroLHS && !row[m].isZero()) return { solutions: [], infeasible: true };
+            }
+
+            const pivotRows = pivotCols.map((pc, idx) => ({ col: pc, row: idx }));
+
+            function evaluate(freeVals) {
+                const x = new Array(m).fill(null);
+                freeCols.forEach((fc, idx) => { x[fc] = freeVals[idx]; });
+                for (const { col, row } of pivotRows) {
+                    let val = matrix[row][m];
+                    for (let idx = 0; idx < freeCols.length; idx++) {
+                        val = val.sub(matrix[row][freeCols[idx]].mul(new Frac(freeVals[idx])));
+                    }
+                    if (!val.isInteger()) return null;
+                    if (val.n < 0n) return null;
+                    x[col] = Number(val.n);
+                }
+                return x;
+            }
+
+            const nFree = freeCols.length;
+            const solutions = [];
+            const seenCombos = new Set();
+
+            function tryRecord(x) {
+                if (!x) return;
+                if (x.reduce((a, b) => a + b, 0) > maxIng) return; // too many ingredients, skip
+                const combo = [];
+                relevantNames.forEach((name, i) => { for (let c = 0; c < x[i]; c++) combo.push(name); });
+                const key = JSON.stringify(combo.slice().sort());
+                if (!seenCombos.has(key)) { seenCombos.add(key); solutions.push(combo); }
+            }
+
+            if (nFree === 0) {
+                tryRecord(evaluate([]));
+                return { solutions, infeasible: solutions.length === 0 };
+            }
+
+            const maxPerVar = Math.max(5, Math.min(50, maxIng));
+            const CHUNK = 20000;
+
+            if (Math.pow(maxPerVar + 1, nFree) <= 4000000) {
+                // Small enough free-variable space: check every combination.
+                const counters = new Array(nFree).fill(0);
+                let tried = 0;
+                outer:
+                while (true) {
+                    tryRecord(evaluate(counters));
+                    tried++;
+                    if (solutions.length >= wanted) break;
+                    if (tried % CHUNK === 0) {
+                        if (onProgress) onProgress(tried, Math.pow(maxPerVar + 1, nFree));
+                        await new Promise(resolve => setTimeout(resolve, 0));
+                    }
+                    let idx = 0;
+                    while (idx < nFree) {
+                        counters[idx]++;
+                        if (counters[idx] > maxPerVar) { counters[idx] = 0; idx++; }
+                        else break;
+                    }
+                    if (idx === nFree) break outer;
+                }
+            } else {
+                // Too many free variables to check exhaustively - sample randomly instead.
+                const MAX_TRIALS = 2000000;
+                for (let t = 0; t < MAX_TRIALS && solutions.length < wanted; t++) {
+                    const freeVals = Array.from({ length: nFree }, () => Math.floor(Math.random() * (maxPerVar + 1)));
+                    tryRecord(evaluate(freeVals));
+                    if (t % CHUNK === 0) {
+                        if (onProgress) onProgress(t, MAX_TRIALS);
+                        await new Promise(resolve => setTimeout(resolve, 0));
+                    }
+                }
+            }
+
+            return { solutions, infeasible: solutions.length === 0 };
+        }
+
+        async function solve() {
+            const selected = Array.from(document.querySelectorAll(".sc:checked")).map(i => i.value);
+            const resultsDiv = document.getElementById("results");
+            if (!selected.length) return alert("Select symptoms!");
+
+            const maxIng = Math.max(1, parseInt(document.getElementById("maxIng").value) || 60);
+            const limit = Math.max(1, parseInt(document.getElementById("limit").value) || 5);
+
+            const genBtn = document.querySelector("button");
+            genBtn.disabled = true;
+
+            const components = getComponents(selected);
+            const perClusterWanted = Math.max(3, Math.min(limit, 6));
+
+            const clusterResults = [];
+            for (const comp of components) {
+                resultsDiv.innerHTML = `Solving for <b>${comp.join(" + ")}</b>...`;
+                const { solutions, infeasible } = await solveCluster(comp, maxIng, perClusterWanted, (done, cap) => {
+                    resultsDiv.innerHTML = `Solving for <b>${comp.join(" + ")}</b>... (${done.toLocaleString()} / ${cap.toLocaleString()} checked)`;
+                });
+                clusterResults.push({ symptoms: comp, solutions, infeasible });
+            }
+
+            genBtn.disabled = false;
+
+            const failedClusters = clusterResults.filter(c => c.solutions.length === 0);
+            if (failedClusters.length) {
+                resultsDiv.innerHTML =
+                    `No exact match possible for: <b>${failedClusters.map(c => c.symptoms.join(" + ")).join(", ")}</b>. ` +
+                    `This symptom combination can't be hit exactly with the current ingredients within ${maxIng} ingredients ` +
+                    `(these symptoms only interact with each other's ingredient pool, so they must be solved as their own group). ` +
+                    `Try raising Max Ingredients, or double-check the target percentages are reachable at all.`;
+                return;
+            }
+
+            const minTotal = clusterResults.reduce((sum, c) => sum + c.solutions[0].length, 0);
+            if (minTotal > maxIng) {
+                resultsDiv.innerHTML =
+                    `Each symptom cluster is individually solvable, but the cheapest combination needs ` +
+                    `<b>${minTotal} ingredients</b> total, more than your current Max Ingredients (${maxIng}). ` +
+                    `Raise Max Ingredients to at least ${minTotal} and try again.<br><br>` +
+                    clusterResults.map(c => `${c.symptoms.join(" + ")}: cheapest solution uses ${c.solutions[0].length} ingredients`).join("<br>");
+                return;
+            }
+
+            // Combine per-cluster solutions into full formulas (cartesian-ish, capped at `limit`)
+            const combined = [];
+            const seenFull = new Set();
+            let idx = clusterResults.map(() => 0);
+
+            outer:
+            while (combined.length < limit) {
+                let advanced = false;
+                for (let c = 0; c < clusterResults.length; c++) {
+                    if (idx[c] >= clusterResults[c].solutions.length) continue;
+
+                    const combo = [];
+                    for (let j = 0; j < clusterResults.length; j++) {
+                        const pick = (j === c) ? idx[c] : Math.min(idx[j], clusterResults[j].solutions.length - 1);
+                        combo.push(...clusterResults[j].solutions[pick]);
+                    }
+                    if (combo.length <= maxIng) {
+                        const key = JSON.stringify(combo.slice().sort());
+                        if (!seenFull.has(key)) {
+                            seenFull.add(key);
+                            combined.push(combo);
+                            advanced = true;
+                            if (combined.length >= limit) break outer;
+                        }
+                    }
+                    idx[c]++;
+                }
+                if (!advanced) break;
+            }
+
+            render(combined, resultsDiv, selected, false, maxIng);
+        }
+
+        function render(solutions, container, selected, exhausted, maxIng) {
+            container.innerHTML = "";
+
+            if (!solutions.length) {
+                container.innerHTML = exhausted
+                    ? `No exact match found within ${maxIng} ingredients. Try raising Max Ingredients, or the target combination may not be reachable at all with the current ingredient set.`
+                    : "No exact matches found.";
+                return;
+            }
+
+            solutions.forEach(list => {
                 const counts = {};
                 list.forEach(x => counts[x] = (counts[x] || 0) + 1);
-                let card = document.createElement("div");
+                const card = document.createElement("div");
                 card.className = "card";
-                let ings = Object.entries(counts).map(([n, c]) => `<div><b>${c}x</b> ${n}</div>`).join("");
-                let stats = selected.map(s => {
-                    let sum = list.reduce((a, b) => a + (ingredientTable[b][s] || 0), 0);
+                const ings = Object.entries(counts).map(([n, c]) => `<div><b>${c}x</b> ${n}</div>`).join("");
+                const stats = selected.map(s => {
+                    const sum = list.reduce((a, b) => a + (ingredientTable[b][s] || 0), 0);
                     return `${s}: ${sum}%`;
                 }).join(" | ");
-                card.innerHTML = `${ings}<div style="margin-top:8px; color:#94a3b8; font-size:12px; border-top:1px solid #334155; padding-top:4px;">${stats}</div>`;
+                card.innerHTML = `${ings}<div class="meta">${list.length} ingredients total &middot; ${stats}</div>`;
                 container.appendChild(card);
             });
         }
